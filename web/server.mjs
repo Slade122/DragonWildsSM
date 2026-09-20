@@ -14,6 +14,8 @@ const authPath = path.join(stateRoot, 'config', 'WebUiAuth.json');
 const configPath = path.join(stateRoot, 'config', 'ServerConfig.psd1');
 const secretPath = path.join(stateRoot, 'config', 'ServerSecrets.psd1');
 const scripts = path.join('C:\\DragonWildsSM', 'scripts');
+const gameRoot = 'C:\\DragonWildsServer\\RSDragonwilds';
+const backupRoot = path.join(stateRoot, 'backups');
 const app = express();
 app.use(express.json({ limit: '8kb' }));
 
@@ -21,7 +23,14 @@ const hash = (value, salt) => crypto.pbkdf2Sync(value, salt, 210000, 64, 'sha1')
 const readAuth = async () => JSON.parse((await fs.readFile(authPath, 'utf8')).replace(/^\uFEFF/, ''));
 const session = new Map();
 const cookie = (request) => request.headers.cookie?.match(/dwsm=([^;]+)/)?.[1];
-const requireAuth = (request, response, next) => session.has(cookie(request)) ? next() : response.status(401).json({ error: 'Unauthorized' });
+const requireAuth = (request, response, next) => {
+  const token = cookie(request);
+  if (!token || session.get(token) < Date.now()) {
+    session.delete(token);
+    return response.status(401).json({ error: 'Unauthorized' });
+  }
+  return next();
+};
 const clean = (value) => String(value ?? '').replace(/'/g, "''").replace(/[\r\n]/g, '').trim();
 const invoke = async (script, args = []) => {
   const command = path.join(scripts, script);
@@ -42,6 +51,41 @@ const dataFile = async (file) => {
   const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', `$data = Import-PowerShellDataFile -LiteralPath '${file}'; $data | ConvertTo-Json -Compress`], { windowsHide: true });
   return JSON.parse(stdout);
 };
+const ps = async (command) => {
+  const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', command], { windowsHide: true, timeout: 30 * 1000 });
+  return stdout.trim();
+};
+const overview = async () => {
+  const status = await health();
+  const command = [
+    `$gameRoot = '${gameRoot}'`,
+    `$save = Get-ChildItem -LiteralPath (Join-Path $gameRoot 'Saved\\SaveGames') -Filter '*.sav' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1`,
+    `$log = Get-ChildItem -LiteralPath (Join-Path $gameRoot 'Saved\\Logs') -Filter '*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1`,
+    `$os = Get-CimInstance Win32_OperatingSystem`,
+    `$process = Get-Process -Name 'RSDragonwildsServer-Win64-Shipping' -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    `$initialCpu = if ($process) { $process.CPU } else { 0 }; $processId = if ($process) { $process.Id } else { $null }; Start-Sleep -Milliseconds 500; if ($processId) { $process = Get-Process -Id $processId -ErrorAction SilentlyContinue }`,
+    `$logicalProcessors = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors`,
+    `$disk = Get-Volume -DriveLetter C`,
+    `[pscustomobject]@{ SaveName = $save.Name; SaveSize = $save.Length; SaveUpdated = $save.LastWriteTime.ToString('o'); LogName = $log.Name; LogUpdated = $log.LastWriteTime.ToString('o'); HostMemoryUsedPercent = [math]::Round((1 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize)) * 100); ServerCpuPercent = if ($process) { [math]::Round((($process.CPU - $initialCpu) / 0.5 / $logicalProcessors) * 100, 1) } else { 0 }; ServerMemoryMB = if ($process) { [math]::Round($process.WorkingSet64 / 1MB, 1) } else { 0 }; ServerVirtualMemoryMB = if ($process) { [math]::Round($process.VirtualMemorySize64 / 1MB, 1) } else { 0 }; DiskFreeGB = [math]::Round($disk.SizeRemaining / 1GB, 1); DiskTotalGB = [math]::Round($disk.Size / 1GB, 1) } | ConvertTo-Json -Compress`
+  ].join('; ');
+  return { ...status, ...(JSON.parse(await ps(command))) };
+};
+const recentLogs = async () => {
+  const command = `$password = (Import-PowerShellDataFile -LiteralPath '${secretPath}').WorldPassword; $log = Get-ChildItem -LiteralPath '${gameRoot}\\Saved\\Logs' -Filter '*.log' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1; Get-Content -LiteralPath $log.FullName -Tail 100 | ForEach-Object { if ($password) { $_.Replace($password, '[REDACTED]') } else { $_ } } | ConvertTo-Json -Compress`;
+  const value = JSON.parse(await ps(command));
+  return { lines: Array.isArray(value) ? value : [value] };
+};
+const createBackup = async () => {
+  await invoke('Stop-DragonWildsServer.ps1');
+  try {
+    const name = `DragonWilds-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+    await fs.mkdir(backupRoot, { recursive: true });
+    await ps(`Compress-Archive -LiteralPath '${gameRoot}\\Saved\\SaveGames' -DestinationPath '${path.join(backupRoot, name)}' -CompressionLevel Optimal -Force`);
+    return name;
+  } finally {
+    await invoke('Start-DragonWildsServer.ps1');
+  }
+};
 const writeConfig = async (config, secrets) => {
   const content = `@{\n    AppId = ${config.AppId}\n    InstallRoot = '${clean(config.InstallRoot)}'\n    SteamCmdPath = '${clean(config.SteamCmdPath)}'\n    ServerExecutableRelativePath = '${clean(config.ServerExecutableRelativePath)}'\n    GamePort = ${Number(config.GamePort)}\n    Public = ${config.Public ? 1 : 0}\n    ServerName = '${clean(config.ServerName)}'\n    WorldName = '${clean(config.WorldName)}'\n    LogRetentionDays = ${Number(config.LogRetentionDays)}\n}\n`;
   const secretContent = `@{\n    OwnerId = '${clean(secrets.OwnerId)}'\n    AdminPassword = '${clean(secrets.AdminPassword)}'\n    WorldPassword = '${clean(secrets.WorldPassword)}'\n}\n`;
@@ -59,9 +103,11 @@ app.post('/api/login', async (request, response) => {
 });
 app.post('/api/logout', requireAuth, (request, response) => { session.delete(cookie(request)); response.setHeader('Set-Cookie', 'dwsm=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); response.json({ ok: true }); });
 app.get('/api/status', requireAuth, async (_, response) => response.json(await health()));
+app.get('/api/overview', requireAuth, async (_, response) => response.json(await overview()));
+app.get('/api/logs', requireAuth, async (_, response) => response.json(await recentLogs()));
 app.get('/api/config', requireAuth, async (_, response) => {
   const config = await dataFile(configPath); const secrets = await dataFile(secretPath);
-  response.json({ serverName: config.ServerName, worldName: config.WorldName, public: Boolean(config.Public), worldPassword: '', adminPassword: '' });
+  response.json({ serverName: config.ServerName, worldName: config.WorldName, public: Boolean(config.Public), gamePort: config.GamePort, installRoot: config.InstallRoot, steamCmdPath: config.SteamCmdPath, executablePath: path.join(config.InstallRoot, config.ServerExecutableRelativePath), platformPolicy: 'Crossplay', maxPlayers: 6, worldPassword: '', adminPassword: '' });
 });
 app.put('/api/config', requireAuth, async (request, response) => {
   const config = await dataFile(configPath); const secrets = await dataFile(secretPath);
@@ -74,6 +120,10 @@ app.put('/api/config', requireAuth, async (request, response) => {
   response.json({ message: 'Configuration saved and server restarted.' });
 });
 app.post('/api/actions/:action', requireAuth, async (request, response) => {
+  if (request.params.action === 'backup') {
+    const backup = await createBackup();
+    return response.json({ message: `World backup created: ${backup}` });
+  }
   const commands = { start: ['Start-DragonWildsServer.ps1'], stop: ['Stop-DragonWildsServer.ps1'], restart: ['Stop-DragonWildsServer.ps1', 'Start-DragonWildsServer.ps1'], update: ['Update-DragonWildsServer.ps1'] };
   const sequence = commands[request.params.action]; if (!sequence) return response.status(404).json({ error: 'Unknown action.' });
   for (const command of sequence) await invoke(command);

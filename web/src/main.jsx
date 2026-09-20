@@ -37,13 +37,15 @@ function App() {
   const [authenticated, setAuthenticated] = useState(null);
   const [status, setStatus] = useState(null);
   const [config, setConfig] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [tab, setTab] = useState('overview');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
 
   const refresh = async () => {
     try {
-      const [nextStatus, nextConfig] = await Promise.all([request('/api/status'), request('/api/config')]);
-      setStatus(nextStatus); setConfig(nextConfig); setAuthenticated(true);
+      const [nextStatus, nextConfig, nextLogs] = await Promise.all([request('/api/overview'), request('/api/config'), request('/api/logs')]);
+      setStatus(nextStatus); setConfig(nextConfig); setLogs(nextLogs.lines); setAuthenticated(true);
     } catch (failure) {
       if (failure.message === 'Unauthorized') setAuthenticated(false);
       else setMessage(failure.message);
@@ -77,25 +79,32 @@ function App() {
   if (authenticated === null) return <main className="loading">Checking server…</main>;
   if (!authenticated) return <Login onLogin={refresh} />;
   const update = (field, value) => setConfig(current => ({ ...current, [field]: value }));
+  const uptime = status.running ? 'RUNNING' : 'OFFLINE';
   return <main className="shell">
-    <header><div><p className="eyebrow">DRAGONWILDS</p><h1>Server Manager</h1></div><button className="quiet" onClick={() => request('/api/logout', { method: 'POST' }).then(() => setAuthenticated(false))}>Sign out</button></header>
+    <header><div className="brand"><div className="brand-mark">D</div><div><p className="eyebrow">RUNESCAPE · DRAGONWILDS</p><h1>Server Command</h1></div></div><div className="header-actions"><span className={`live ${status.running ? '' : 'offline'}`}><i /> {uptime}</span><button className="quiet" onClick={() => request('/api/logout', { method: 'POST' }).then(() => setAuthenticated(false))}>Sign out</button></div></header>
+    <nav>{[['overview', 'Overview'], ['world', 'World'], ['activity', 'Activity']].map(([value, label]) => <button key={value} className={tab === value ? 'nav-active' : ''} onClick={() => setTab(value)}>{label}</button>)}</nav>
     {message && <div className="notice">{message}</div>}
-    <section className="status-grid">
-      <article className="card"><p className="label">SERVER</p><strong className={status.running ? 'good' : 'bad'}>{status.running ? 'Online' : 'Offline'}</strong><span>{status.running ? `PID ${status.processId}` : 'Not running'}</span></article>
-      <article className="card"><p className="label">NETWORK</p><strong className={status.portBound && status.firewallRulePresent ? 'good' : 'bad'}>UDP {status.gamePort}</strong><span>{status.portBound ? 'Listening' : 'Not listening'} · {status.firewallRulePresent ? 'Firewall open' : 'Firewall missing'}</span></article>
-      <article className="card"><p className="label">WATCHDOG</p><strong className={status.watchdogTaskState === 'Ready' ? 'good' : 'bad'}>{status.watchdogTaskState}</strong><span>Checks every five minutes</span></article>
-    </section>
-    <section className="card controls"><h2>Controls</h2><div className="button-row">
-      {['start', 'stop', 'restart', 'update'].map(name => <button key={name} className={name === 'stop' ? 'danger' : ''} disabled={!!busy} onClick={() => action(name)}>{busy === name ? 'Working…' : name}</button>)}
-    </div><p>Update safely stops the server, validates through SteamCMD, then starts it again.</p></section>
-    <form className="card config" onSubmit={save}><h2>Configuration</h2>
+    {tab === 'overview' && <><section className="hero card"><div><p className="eyebrow">CURRENT SESSION</p><h2>{config.serverName}</h2><p className="hero-text">World <b>{config.worldName}</b> · Crossplay enabled · Public listing {config.public ? 'on' : 'off'}</p></div><div className="hero-actions">{['start', 'restart', 'stop'].map(name => <button key={name} className={name === 'stop' ? 'danger' : ''} disabled={!!busy} onClick={() => action(name)}>{busy === name ? 'Working…' : name}</button>)}</div></section>
+      <section className="metric-grid">
+        <article className="metric card"><p className="label">GAME SERVER</p><strong className={status.running ? 'good' : 'bad'}>{status.running ? 'Online' : 'Offline'}</strong><span>{status.running ? `Shipping process · PID ${status.processId}` : 'Start from the command deck'}</span></article>
+        <article className="metric card"><p className="label">NETWORK</p><strong>UDP {status.gamePort}</strong><span>{status.portBound ? 'Listening' : 'Not listening'} · {status.firewallRulePresent ? 'Firewall open' : 'Firewall missing'}</span></article>
+        <article className="metric card"><p className="label">SERVER CPU</p><strong>{status.ServerCpuPercent}%</strong><span>Dragonwilds shipping process</span></article>
+        <article className="metric card"><p className="label">SERVER MEMORY</p><strong>{status.ServerMemoryMB} MB</strong><span>{status.ServerVirtualMemoryMB} MB virtual memory</span></article>
+        <article className="metric card"><p className="label">SERVER STORAGE</p><strong>{status.DiskFreeGB} GB</strong><span>Free of {status.DiskTotalGB} GB on C:</span></article>
+        <article className="metric card"><p className="label">WORLD SAVE</p><strong>{status.SaveSize ? `${Math.ceil(status.SaveSize / 1024)} KB` : '—'}</strong><span>{status.SaveUpdated ? `Saved ${new Date(status.SaveUpdated).toLocaleString()}` : 'No save found'}</span></article>
+        <article className="metric card"><p className="label">PLAYERS</p><strong>— / {config.maxPlayers}</strong><span>Dragonwilds exposes no server-side live player query.</span></article>
+      </section>
+      <section className="card operations"><div><p className="eyebrow">OPERATIONS</p><h2>Command deck</h2><p>Updates validate through SteamCMD. World backups stop the server, archive saves, then restart it.</p></div><div className="button-row"><button disabled={!!busy} onClick={() => action('update')}>{busy === 'update' ? 'Updating…' : 'Update server'}</button><button className="secondary" disabled={!!busy} onClick={() => action('backup')}>{busy === 'backup' ? 'Backing up…' : 'Create backup'}</button></div></section></>}
+    {tab === 'world' && <form className="card config" onSubmit={save}><div className="section-heading"><p className="eyebrow">WORLD SETTINGS</p><h2>Configure your realm</h2><p>Every setting Dragonwilds exposes through its dedicated-server configuration. Saving applies settings and restarts the server.</p></div>
       <label>Server name<input required value={config.serverName} onChange={e => update('serverName', e.target.value)} /></label>
       <label>World name<input required value={config.worldName} onChange={e => update('worldName', e.target.value)} /></label>
       <label>World password<input type="password" placeholder="Unchanged" value={config.worldPassword} onChange={e => update('worldPassword', e.target.value)} /></label>
       <label>Admin password<input type="password" placeholder="Unchanged" value={config.adminPassword} onChange={e => update('adminPassword', e.target.value)} /></label>
       <label className="check"><input type="checkbox" checked={config.public} onChange={e => update('public', e.target.checked)} /> List publicly in Dragonwilds</label>
+      <div className="readonly-grid"><div><span>Install location</span><code>{config.installRoot}</code></div><div><span>Server executable</span><code>{config.executablePath}</code></div><div><span>SteamCMD</span><code>{config.steamCmdPath}</code></div><div><span>Network</span><code>Game UDP {config.gamePort} · {config.platformPolicy} · {config.maxPlayers} player build limit</code></div></div>
       <button disabled={!!busy}>{busy === 'save' ? 'Saving…' : 'Save and restart'}</button>
-    </form>
+    </form>}
+    {tab === 'activity' && <section className="card logs"><div className="section-heading"><p className="eyebrow">LIVE LOG</p><h2>Server activity</h2><p>Last 100 lines. Refreshes every 15 seconds.</p></div><pre>{logs.join('\n')}</pre></section>}
   </main>;
 }
 

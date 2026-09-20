@@ -65,7 +65,9 @@ Then install it on the server from elevated PowerShell:
 
 The dashboard listens only on the LAN at `http://<server-LAN-IP>:8787`. It uses a local password stored as a PBKDF2 hash in `C:\ProgramData\DragonWildsSM\config\WebUiAuth.json`, inaccessible to normal users. The Windows Firewall rule is limited to `LocalSubnet`; do not expose this HTTP dashboard through pfSense or nginx.
 
-The dashboard shows server, network, and watchdog state; starts/stops/restarts the server; runs SteamCMD updates; and updates server/world/password settings. Password fields stay blank in the UI until explicitly changed.
+The dashboard shows Dragonwilds process CPU, memory, virtual memory, storage, saves, network, logs, install paths, and every supported dedicated-server setting. It starts/stops/restarts the server, runs SteamCMD updates, makes safe world backups, and updates server/world/password settings. Password fields stay blank in the UI until explicitly changed.
+
+Dragonwilds does not expose a server-side live-player query or RCON endpoint. The dashboard shows the game's compiled six-player capacity but labels live player count as unavailable rather than guessing.
 
 ## Network
 
