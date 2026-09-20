@@ -23,12 +23,19 @@ Set-Location C:\DragonWildsSM
 
 - `DragonWildsServer` — starts at boot as `SYSTEM`.
 - `DragonWildsServerWatchdog` — runs every five minutes and restarts a stopped server.
+- `DragonWildsAutoUpdate` — checks Steam hourly; when a new build is available it gives a 10-minute grace window, then stops, validates/updates, and restarts.
 
 ## Operations
 
 ```powershell
 # Apply an upstream update safely: stop, validate-update, start.
 .\scripts\Update-DragonWildsServer.ps1
+
+# Check Steam build status without restarting.
+.\scripts\Get-DragonWildsUpdateStatus.ps1
+
+# Automated update flow: check, wait 10 minutes if needed, update, restart.
+.\scripts\Invoke-ScheduledUpdate.ps1 -GraceMinutes 10
 
 # Stop or start the game process.
 .\scripts\Stop-DragonWildsServer.ps1
@@ -65,9 +72,9 @@ Then install it on the server from elevated PowerShell:
 
 The dashboard listens only on the LAN at `http://<server-LAN-IP>:8787`. It uses a local password stored as a PBKDF2 hash in `C:\ProgramData\DragonWildsSM\config\WebUiAuth.json`, inaccessible to normal users. The Windows Firewall rule is limited to `LocalSubnet`; do not expose this HTTP dashboard through pfSense or nginx.
 
-The dashboard shows Dragonwilds process CPU, memory, virtual memory, storage, saves, network, logs, install paths, and every supported dedicated-server setting. It starts/stops/restarts the server, runs SteamCMD updates, makes safe world backups, and updates server/world/password settings. Password fields stay blank in the UI until explicitly changed.
+The dashboard shows Dragonwilds process CPU, memory, virtual memory, storage, saves, network, logs, install paths, update state, and every supported dedicated-server setting. It starts/stops/restarts the server, runs SteamCMD updates, starts the 10-minute scheduled-update flow, makes safe world backups, and updates server/world/password settings. Password fields stay blank in the UI until explicitly changed.
 
-Dragonwilds does not expose a server-side live-player query or RCON endpoint. The dashboard shows the game's compiled six-player capacity but labels live player count as unavailable rather than guessing.
+Dragonwilds does not respond to Steam A2S player queries on the game port and does not expose a known RCON endpoint. The dashboard probes A2S locally and shows the game's compiled six-player capacity, but labels live player count as unavailable rather than guessing when the probe times out.
 
 ## Network
 

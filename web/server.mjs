@@ -5,6 +5,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
+import dgram from 'node:dgram';
 
 const execFileAsync = promisify(execFile);
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -13,6 +14,7 @@ const stateRoot = path.join(programData, 'DragonWildsSM');
 const authPath = path.join(stateRoot, 'config', 'WebUiAuth.json');
 const configPath = path.join(stateRoot, 'config', 'ServerConfig.psd1');
 const secretPath = path.join(stateRoot, 'config', 'ServerSecrets.psd1');
+const updateStatusPath = path.join(stateRoot, 'update-status.json');
 const scripts = path.join('C:\\DragonWildsSM', 'scripts');
 const gameRoot = 'C:\\DragonWildsServer\\RSDragonwilds';
 const backupRoot = path.join(stateRoot, 'backups');
@@ -85,6 +87,28 @@ const recentLogs = async () => {
   const value = JSON.parse(await ps(command));
   return { lines: Array.isArray(value) ? value : [value] };
 };
+const playerQuery = async (port) => new Promise((resolve) => {
+  const socket = dgram.createSocket('udp4');
+  const request = Buffer.concat([Buffer.from([0xff, 0xff, 0xff, 0xff, 0x54]), Buffer.from('Source Engine Query\0')]);
+  const done = (result) => { try { socket.close(); } catch { /* closed */ } resolve(result); };
+  const timer = setTimeout(() => done({ supported: false, currentPlayers: null, maxPlayers: 6, message: 'No Steam A2S response from Dragonwilds. Live player count is not exposed by the server.' }), 750);
+  socket.once('message', (message) => {
+    clearTimeout(timer);
+    const players = message.length > 0 ? message[message.length - 2] : null;
+    const maxPlayers = message.length > 0 ? message[message.length - 1] : 6;
+    done({ supported: true, currentPlayers: players, maxPlayers, message: 'Steam A2S query responded.' });
+  });
+  socket.send(request, port, '127.0.0.1', (error) => {
+    if (error) { clearTimeout(timer); done({ supported: false, currentPlayers: null, maxPlayers: 6, message: error.message }); }
+  });
+});
+const updateStatus = async () => {
+  try {
+    return JSON.parse((await fs.readFile(updateStatusPath, 'utf8')).replace(/^\uFEFF/, ''));
+  } catch {
+    return { status: 'unknown', message: 'No scheduled update check has run yet.' };
+  }
+};
 const createBackup = async () => {
   await invoke('Stop-DragonWildsServer.ps1');
   try {
@@ -115,6 +139,11 @@ app.post('/api/logout', requireAuth, (request, response) => { session.delete(coo
 app.get('/api/status', requireAuth, async (_, response) => response.json(await health()));
 app.get('/api/overview', requireAuth, async (_, response) => response.json(await overview()));
 app.get('/api/logs', requireAuth, async (_, response) => response.json(await recentLogs()));
+app.get('/api/player-query', requireAuth, async (_, response) => {
+  const config = await dataFile(configPath);
+  response.json(await playerQuery(config.GamePort));
+});
+app.get('/api/update-status', requireAuth, async (_, response) => response.json(await updateStatus()));
 app.get('/api/config', requireAuth, async (_, response) => {
   const config = await dataFile(configPath); const secrets = await dataFile(secretPath);
   response.json({ serverName: config.ServerName, worldName: config.WorldName, public: Boolean(config.Public), gamePort: config.GamePort, installRoot: config.InstallRoot, steamCmdPath: config.SteamCmdPath, executablePath: path.join(config.InstallRoot, config.ServerExecutableRelativePath), platformPolicy: 'Crossplay', maxPlayers: 6, worldPassword: '', adminPassword: '' });
@@ -133,6 +162,16 @@ app.post('/api/actions/:action', requireAuth, async (request, response) => {
   if (request.params.action === 'backup') {
     const backup = await createBackup();
     return response.json({ message: `World backup created: ${backup}` });
+  }
+  if (request.params.action === 'check-update') {
+    const output = await invoke('Get-DragonWildsUpdateStatus.ps1');
+    const status = JSON.parse(output);
+    await fs.writeFile(updateStatusPath, JSON.stringify({ ...status, status: status.updateAvailable ? 'available' : 'current', message: status.updateAvailable ? `Update available: ${status.installedBuildId} -> ${status.remoteBuildId}.` : `Installed build ${status.installedBuildId} is current.` }, null, 2), 'utf8');
+    return response.json({ message: status.updateAvailable ? 'Update available.' : 'Server is current.' });
+  }
+  if (request.params.action === 'scheduled-update') {
+    execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(scripts, 'Invoke-ScheduledUpdate.ps1'), '-GraceMinutes', '10'], { windowsHide: true });
+    return response.json({ message: 'Update check started. If an update exists, restart happens in 10 minutes.' });
   }
   const commands = { start: ['Start-DragonWildsServer.ps1'], stop: ['Stop-DragonWildsServer.ps1'], restart: ['Stop-DragonWildsServer.ps1', 'Start-DragonWildsServer.ps1'], update: ['Update-DragonWildsServer.ps1'] };
   const sequence = commands[request.params.action]; if (!sequence) return response.status(404).json({ error: 'Unknown action.' });

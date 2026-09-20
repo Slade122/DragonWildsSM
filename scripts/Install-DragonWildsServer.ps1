@@ -66,10 +66,14 @@ if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContin
 $powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 $startAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\Start-DragonWildsServer.ps1`""
 $monitorAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\Monitor-DragonWildsServer.ps1`""
+$updateAction = New-ScheduledTaskAction -Execute $powerShell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\Invoke-ScheduledUpdate.ps1`" -GraceMinutes 10"
 $startupTrigger = New-ScheduledTaskTrigger -AtStartup
 $monitorTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
+$updateTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(17) -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Days 3650)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+$updateSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 45)
 Register-ScheduledTask -TaskName 'DragonWildsServer' -Action $startAction -Trigger $startupTrigger -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
 Register-ScheduledTask -TaskName 'DragonWildsServerWatchdog' -Action $monitorAction -Trigger $monitorTrigger -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+Register-ScheduledTask -TaskName 'DragonWildsAutoUpdate' -Action $updateAction -Trigger $updateTrigger -Settings $updateSettings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
 
 Write-DragonWildsLog "Installation complete. Configure secrets with Configure-DragonWildsServer.ps1 before starting."
