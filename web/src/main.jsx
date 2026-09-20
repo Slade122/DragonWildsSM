@@ -71,6 +71,8 @@ function Setup({ setupInfo }) {
     worldName: 'Dragonwilds',
     ownerId: '',
     public: true,
+    platformPolicy: 'Crossplay',
+    maxPlayers: 6,
     worldPassword: '',
     adminPassword: '',
     dashboardPassword: '',
@@ -136,6 +138,8 @@ function Setup({ setupInfo }) {
       <label>Dashboard password<input type="password" minLength="8" value={form.dashboardPassword} onChange={e => update('dashboardPassword', e.target.value)} /></label>
       <label>Update check interval (hours)<input type="number" min="1" max="24" value={form.updateCheckHours} onChange={e => update('updateCheckHours', Number(e.target.value))} /></label>
       <label>Update warning (minutes)<input type="number" min="0" max="60" value={form.updateGraceMinutes} onChange={e => update('updateGraceMinutes', Number(e.target.value))} /></label>
+      <label>Allowed platforms<select value={form.platformPolicy} onChange={e => update('platformPolicy', e.target.value)}><option>Crossplay</option><option>PC</option><option>PlayStation</option><option>Xbox</option><option>Nintendo</option></select></label>
+      <label>Player cap<input type="number" min="1" max="6" value={form.maxPlayers} onChange={e => update('maxPlayers', Number(e.target.value))} /></label>
       <label className="check wide"><input type="checkbox" checked={form.public} onChange={e => update('public', e.target.checked)} /> Show in the public Dragonwilds server list</label>
     </section>}
 
@@ -289,7 +293,7 @@ function App() {
       <div className="hero-copy">
         <p className="eyebrow">World shard</p>
         <h2>{config.worldName}</h2>
-        <p>{config.managerSubtitle}. Public listing is <b>{config.public ? 'enabled' : 'hidden'}</b>; live player query is {players?.supported ? 'working' : 'not exposed by RSDW'}.</p>
+        <p>{config.managerSubtitle}. Public listing is <b>{config.public ? 'enabled' : 'hidden'}</b>; player monitoring is {players?.supported ? 'active' : 'unavailable'}.</p>
       </div>
       <div className="quick-actions">
         {['start', 'restart', 'stop'].map(name => <button key={name} className={name === 'stop' ? 'danger' : ''} disabled={!!busy} onClick={() => action(name)}>{busy === name ? 'Working...' : actionLabels[name]}</button>)}
@@ -313,7 +317,7 @@ function App() {
         <div className="stats-grid">
           <Stat label="Game server" value={online ? 'Lit' : 'Dark'} detail={online ? `PID ${status.processId}` : 'Awaiting start'} tone={online ? 'good' : 'bad'} />
           <Stat label="Players" value={playerText} detail={players?.message || 'Checking query endpoint'} />
-          <Stat label="Network" value={status.portBound ? 'Bound' : 'Closed'} detail={`UDP ${status.gamePort} · ${status.firewallRulePresent ? 'firewall open' : 'firewall missing'}`} tone={status.portBound ? 'good' : 'bad'} />
+          <Stat label="Public session" value={status.SessionReady ? 'Listed' : 'Starting'} detail={status.SessionReady ? `Search exact world: ${config.worldName}${status.JoinCode ? ` · code ${status.JoinCode}` : ''}` : 'Waiting for EOS session registration'} tone={status.SessionReady ? 'good' : 'bad'} />
           <Stat label="World save" value={status.SaveSize ? `${Math.ceil(status.SaveSize / 1024)} KB` : 'None'} detail={status.SaveUpdated ? new Date(status.SaveUpdated).toLocaleString() : 'No save found'} />
         </div>
       </div>
@@ -340,6 +344,8 @@ function App() {
       <label>Server name<input required value={config.serverName} onChange={e => update('serverName', e.target.value)} /></label>
       <label>World name<input required value={config.worldName} onChange={e => update('worldName', e.target.value)} /></label>
       <label>Game UDP port<input type="number" min="1" max="65535" value={config.gamePort} onChange={e => update('gamePort', Number(e.target.value))} /></label>
+      <label>Allowed platforms<select value={config.platformPolicy} onChange={e => update('platformPolicy', e.target.value)}><option>Crossplay</option><option>PC</option><option>PlayStation</option><option>Xbox</option><option>Nintendo</option></select></label>
+      <label>Player cap<input type="number" min="1" max="6" value={config.maxPlayers} onChange={e => update('maxPlayers', Number(e.target.value))} /></label>
       <label>World password<input type="password" placeholder="Leave blank to keep current" value={config.worldPassword} onChange={e => update('worldPassword', e.target.value)} /></label>
       <label>Admin password<input type="password" placeholder="Leave blank to keep current" value={config.adminPassword} onChange={e => update('adminPassword', e.target.value)} /></label>
       <label>Owner SteamID64<input inputMode="numeric" placeholder="17-digit SteamID64" value={config.ownerId} onChange={e => update('ownerId', e.target.value)} /></label>

@@ -6,6 +6,8 @@ param(
     [ValidateRange(1, 65535)][int]$GamePort = 7777,
     [string]$ServerName = 'My Dragonwilds Server',
     [string]$WorldName = 'Dragonwilds',
+    [ValidateSet('Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo')][string]$PlatformPolicy = 'Crossplay',
+    [ValidateRange(1, 6)][int]$MaxPlayers = 6,
     [ValidateRange(1, 24)][int]$UpdateCheckHours = 1,
     [ValidateRange(0, 60)][int]$UpdateGraceMinutes = 10,
     [switch]$SkipDownload
@@ -64,6 +66,8 @@ $config = @{
     Public = 1
     ServerName = $ServerName
     WorldName = $WorldName
+    PlatformPolicy = $PlatformPolicy
+    MaxPlayers = $MaxPlayers
     LogRetentionDays = 30
     UpdateCheckHours = $UpdateCheckHours
     UpdateGraceMinutes = $UpdateGraceMinutes

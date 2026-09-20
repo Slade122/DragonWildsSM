@@ -39,6 +39,8 @@ function Get-DragonWildsConfig {
         BackupRoot = (Join-Path $script:StateRoot 'backups')
         UpdateCheckHours = 1
         UpdateGraceMinutes = 10
+        PlatformPolicy = 'Crossplay'
+        MaxPlayers = 6
         WebPort = 8787
         WebBindAddress = '0.0.0.0'
         WebRemoteAddress = 'LocalSubnet'
@@ -70,6 +72,8 @@ function ConvertTo-DragonWildsConfigContent {
     Public = $($Config.Public)
     ServerName = $(ConvertTo-Psd1Literal $Config.ServerName)
     WorldName = $(ConvertTo-Psd1Literal $Config.WorldName)
+    PlatformPolicy = $(ConvertTo-Psd1Literal $Config.PlatformPolicy)
+    MaxPlayers = $($Config.MaxPlayers)
     LogRetentionDays = $($Config.LogRetentionDays)
     UpdateCheckHours = $($Config.UpdateCheckHours)
     UpdateGraceMinutes = $($Config.UpdateGraceMinutes)

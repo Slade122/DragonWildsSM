@@ -10,7 +10,7 @@ A self-hosted Windows manager for the RuneScape: Dragonwilds dedicated server. I
 - Automatic startup and five-minute watchdog tasks
 - Hourly-by-default Steam build checks with a configurable shutdown grace period
 - Safe save backups to any local drive or UNC path available to `SYSTEM`
-- Process, network, CPU, memory, disk, save, update, and log monitoring
+- Process, player connections, network, CPU, memory, disk, save, update, and log monitoring
 - LAN-restricted dashboard firewall rule by default
 
 ## Requirements
@@ -130,6 +130,8 @@ Runtime files are stored under `C:\ProgramData\DragonWildsSM`:
 
 Secret files are restricted to Administrators and `SYSTEM` and are excluded from Git.
 
+`PlatformPolicy` accepts `Crossplay`, `PC`, `PlayStation`, `Xbox`, or `Nintendo`. `MaxPlayers` accepts 1 through 6; the manager applies it through Unreal's `Engine.GameSession` launch override.
+
 ## Manual operations
 
 ```powershell
@@ -141,7 +143,7 @@ Secret files are restricted to Administrators and `SYSTEM` and are excluded from
 .\scripts\Get-DragonWildsHealth.ps1
 ```
 
-Dragonwilds currently does not respond to Steam A2S player queries on the game port and exposes no known RCON endpoint. The dashboard reports the six-player build limit and marks live player count unavailable rather than fabricating a value.
+Dragonwilds does not respond to Steam A2S queries and exposes no known RCON endpoint. The manager estimates active players from bidirectional UDP flows on the configured game port. The game currently supports a maximum configured cap of six players.
 
 ## Network
 

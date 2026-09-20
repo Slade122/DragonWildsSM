@@ -19,12 +19,17 @@ Public=$($config.Public)
 WorldPassword=$(if ($secrets.ContainsKey('WorldPassword')) { $secrets.WorldPassword })
 ServerName=$($config.ServerName)
 DefaultWorldName=$($config.WorldName)
+PlatformPolicy=$($config.PlatformPolicy)
 "@
 Set-Content -LiteralPath $settingsPath -Value $settings -Encoding utf8
 Set-RestrictedFileAcl -Path $settingsPath
 
 $executable = Get-DragonWildsExecutablePath -Config $config
-Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable) -ArgumentList ('-port={0}' -f $config.GamePort) | Out-Null
+$arguments = @(
+    ('-port={0}' -f $config.GamePort)
+    ('-ini:Game:[/Script/Engine.GameSession]:MaxPlayers={0}' -f $config.MaxPlayers)
+)
+Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable) -ArgumentList $arguments | Out-Null
 $deadline = (Get-Date).AddSeconds(60)
 do {
     Start-Sleep -Seconds 2

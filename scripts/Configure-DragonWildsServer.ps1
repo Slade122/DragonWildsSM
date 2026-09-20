@@ -2,6 +2,8 @@
 param(
     [string]$ServerName,
     [string]$WorldName,
+    [ValidateSet('Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo')][string]$PlatformPolicy,
+    [ValidateRange(1, 6)][int]$MaxPlayers,
     [string]$OwnerId,
     [SecureString]$AdminPassword,
     [SecureString]$WorldPassword,
@@ -18,6 +20,8 @@ if (-not $ServerName) { $ServerName = Read-Host "Server name [$($config.ServerNa
 if (-not $ServerName) { $ServerName = $config.ServerName }
 if (-not $WorldName) { $WorldName = Read-Host "World name [$($config.WorldName)]" }
 if (-not $WorldName) { $WorldName = $config.WorldName }
+if ($PlatformPolicy) { $config.PlatformPolicy = $PlatformPolicy }
+if ($PSBoundParameters.ContainsKey('MaxPlayers')) { $config.MaxPlayers = $MaxPlayers }
 if (-not $PSBoundParameters.ContainsKey('AdminPassword')) { $AdminPassword = Read-Host 'Admin password (blank disables)' -AsSecureString }
 if (-not $PSBoundParameters.ContainsKey('WorldPassword')) { $WorldPassword = Read-Host 'World password (blank allows friends without one)' -AsSecureString }
 if (-not $OwnerId) { $OwnerId = Read-Host 'SteamID64 owner (optional)' }

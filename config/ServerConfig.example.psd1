@@ -8,6 +8,8 @@
     Public = 1
     ServerName = 'My Dragonwilds Server'
     WorldName = 'DragonWilds'
+    PlatformPolicy = 'Crossplay'
+    MaxPlayers = 6
     LogRetentionDays = 30
     UpdateCheckHours = 1
     UpdateGraceMinutes = 10

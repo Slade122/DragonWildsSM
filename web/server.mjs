@@ -5,7 +5,6 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
-import dgram from 'node:dgram';
 
 const execFileAsync = promisify(execFile);
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -79,6 +78,8 @@ const readConfig = async () => {
     Public: 1,
     ServerName: 'My Dragonwilds Server',
     WorldName: 'Dragonwilds',
+    PlatformPolicy: 'Crossplay',
+    MaxPlayers: 6,
     LogRetentionDays: 30,
     BackupRoot: path.join(stateRoot, 'backups'),
     UpdateCheckHours: 1,
@@ -109,12 +110,16 @@ const overview = async (config) => {
     `$gameRoot = ${psLiteral(gameRoot)}`,
     `$save = Get-ChildItem -LiteralPath (Join-Path $gameRoot 'Saved\\SaveGames') -Filter '*.sav' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1`,
     `$log = Get-ChildItem -LiteralPath (Join-Path $gameRoot 'Saved\\Logs') -Filter '*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1`,
+    `$logTail = if ($log) { Get-Content -LiteralPath $log.FullName -Tail 500 } else { @() }`,
+    `$sessionReady = [bool]($logTail | Select-String -SimpleMatch 'START SESSION - Success' | Select-Object -Last 1)`,
+    `$joinCodeMatch = $logTail | Select-String 'Setting \\["JoinCode"\\].*value\\[(?<code>[^]]+)\\]' | Select-Object -Last 1`,
+    `$joinCode = if ($joinCodeMatch -and $joinCodeMatch.Matches.Count) { $joinCodeMatch.Matches[0].Groups['code'].Value } else { $null }`,
     `$os = Get-CimInstance Win32_OperatingSystem`,
     `$process = Get-Process -Name 'RSDragonwildsServer-Win64-Shipping' -ErrorAction SilentlyContinue | Select-Object -First 1`,
     `$initialCpu = if ($process) { $process.CPU } else { 0 }; $processId = if ($process) { $process.Id } else { $null }; $initialIo = if ($processId) { Get-CimInstance Win32_Process -Filter "ProcessId=$processId" } else { $null }; Start-Sleep -Milliseconds 500; if ($processId) { $process = Get-Process -Id $processId -ErrorAction SilentlyContinue; $finalIo = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" }`,
     `$logicalProcessors = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors`,
     `$disk = Get-Volume -DriveLetter C`,
-    `[pscustomobject]@{ SaveName = $save.Name; SaveSize = $save.Length; SaveUpdated = $save.LastWriteTime.ToString('o'); LogName = $log.Name; LogUpdated = $log.LastWriteTime.ToString('o'); HostMemoryUsedPercent = [math]::Round((1 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize)) * 100); ServerCpuPercent = if ($process) { [math]::Round((($process.CPU - $initialCpu) / 0.5 / $logicalProcessors) * 100, 1) } else { 0 }; ServerMemoryMB = if ($process) { [math]::Round($process.WorkingSet64 / 1MB, 1) } else { 0 }; ServerMemoryPercent = if ($process) { [math]::Round(($process.WorkingSet64 / ($os.TotalVisibleMemorySize * 1KB)) * 100, 1) } else { 0 }; ServerPrivateMemoryMB = if ($process) { [math]::Round($process.PrivateMemorySize64 / 1MB, 1) } else { 0 }; ServerVirtualMemoryMB = if ($process) { [math]::Round($process.VirtualMemorySize64 / 1MB, 1) } else { 0 }; ServerDiskReadKBps = if ($initialIo -and $finalIo) { [math]::Round(($finalIo.ReadTransferCount - $initialIo.ReadTransferCount) / 0.5 / 1KB, 1) } else { 0 }; ServerDiskWriteKBps = if ($initialIo -and $finalIo) { [math]::Round(($finalIo.WriteTransferCount - $initialIo.WriteTransferCount) / 0.5 / 1KB, 1) } else { 0 }; ServerNetworkIOKBps = if ($initialIo -and $finalIo) { [math]::Round(($finalIo.OtherTransferCount - $initialIo.OtherTransferCount) / 0.5 / 1KB, 1) } else { 0 }; ServerHandles = if ($process) { $process.HandleCount } else { 0 }; ServerThreads = if ($process) { $process.Threads.Count } else { 0 }; DiskFreeGB = [math]::Round($disk.SizeRemaining / 1GB, 1); DiskTotalGB = [math]::Round($disk.Size / 1GB, 1) } | ConvertTo-Json -Compress`
+    `[pscustomobject]@{ SaveName = $save.Name; SaveSize = $save.Length; SaveUpdated = $save.LastWriteTime.ToString('o'); LogName = $log.Name; LogUpdated = $log.LastWriteTime.ToString('o'); SessionReady = $sessionReady; JoinCode = $joinCode; HostMemoryUsedPercent = [math]::Round((1 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize)) * 100); ServerCpuPercent = if ($process) { [math]::Round((($process.CPU - $initialCpu) / 0.5 / $logicalProcessors) * 100, 1) } else { 0 }; ServerMemoryMB = if ($process) { [math]::Round($process.WorkingSet64 / 1MB, 1) } else { 0 }; ServerMemoryPercent = if ($process) { [math]::Round(($process.WorkingSet64 / ($os.TotalVisibleMemorySize * 1KB)) * 100, 1) } else { 0 }; ServerPrivateMemoryMB = if ($process) { [math]::Round($process.PrivateMemorySize64 / 1MB, 1) } else { 0 }; ServerVirtualMemoryMB = if ($process) { [math]::Round($process.VirtualMemorySize64 / 1MB, 1) } else { 0 }; ServerDiskReadKBps = if ($initialIo -and $finalIo) { [math]::Round(($finalIo.ReadTransferCount - $initialIo.ReadTransferCount) / 0.5 / 1KB, 1) } else { 0 }; ServerDiskWriteKBps = if ($initialIo -and $finalIo) { [math]::Round(($finalIo.WriteTransferCount - $initialIo.WriteTransferCount) / 0.5 / 1KB, 1) } else { 0 }; ServerNetworkIOKBps = if ($initialIo -and $finalIo) { [math]::Round(($finalIo.OtherTransferCount - $initialIo.OtherTransferCount) / 0.5 / 1KB, 1) } else { 0 }; ServerHandles = if ($process) { $process.HandleCount } else { 0 }; ServerThreads = if ($process) { $process.Threads.Count } else { 0 }; DiskFreeGB = [math]::Round($disk.SizeRemaining / 1GB, 1); DiskTotalGB = [math]::Round($disk.Size / 1GB, 1) } | ConvertTo-Json -Compress`
   ].join('; ');
   return { ...status, ...(JSON.parse(await ps(command))) };
 };
@@ -124,21 +129,16 @@ const recentLogs = async (config) => {
   const value = JSON.parse(await ps(command));
   return { lines: Array.isArray(value) ? value : [value] };
 };
-const playerQuery = async (port) => new Promise((resolve) => {
-  const socket = dgram.createSocket('udp4');
-  const request = Buffer.concat([Buffer.from([0xff, 0xff, 0xff, 0xff, 0x54]), Buffer.from('Source Engine Query\0')]);
-  const done = (result) => { try { socket.close(); } catch { /* closed */ } resolve(result); };
-  const timer = setTimeout(() => done({ supported: false, currentPlayers: null, maxPlayers: 6, message: 'No Steam A2S response from Dragonwilds. Live player count is not exposed by the server.' }), 750);
-  socket.once('message', (message) => {
-    clearTimeout(timer);
-    const players = message.length > 0 ? message[message.length - 2] : null;
-    const maxPlayers = message.length > 0 ? message[message.length - 1] : 6;
-    done({ supported: true, currentPlayers: players, maxPlayers, message: 'Steam A2S query responded.' });
-  });
-  socket.send(request, port, '127.0.0.1', (error) => {
-    if (error) { clearTimeout(timer); done({ supported: false, currentPlayers: null, maxPlayers: 6, message: error.message }); }
-  });
-});
+const playerQuery = async () => {
+  const output = await invoke('Get-DragonWildsPlayerCount.ps1');
+  const value = JSON.parse(output.match(/\{[\s\S]*\}/)?.[0] || output);
+  return {
+    supported: Boolean(value.Supported ?? value.supported),
+    currentPlayers: value.CurrentPlayers ?? value.currentPlayers ?? null,
+    maxPlayers: value.MaxPlayers ?? value.maxPlayers,
+    message: value.Message ?? value.message
+  };
+};
 const updateStatus = async () => {
   try {
     return JSON.parse((await fs.readFile(updateStatusPath, 'utf8')).replace(/^\uFEFF/, ''));
@@ -159,7 +159,7 @@ const createBackup = async (config) => {
   }
 };
 const writeConfig = async (config, secrets) => {
-  const content = `@{\n    AppId = ${config.AppId}\n    InstallRoot = '${psdValue(config.InstallRoot)}'\n    SteamCmdPath = '${psdValue(config.SteamCmdPath)}'\n    BackupRoot = '${psdValue(config.BackupRoot)}'\n    ServerExecutableRelativePath = '${psdValue(config.ServerExecutableRelativePath)}'\n    GamePort = ${Number(config.GamePort)}\n    Public = ${config.Public ? 1 : 0}\n    ServerName = '${psdValue(config.ServerName)}'\n    WorldName = '${psdValue(config.WorldName)}'\n    LogRetentionDays = ${Number(config.LogRetentionDays)}\n    UpdateCheckHours = ${Number(config.UpdateCheckHours)}\n    UpdateGraceMinutes = ${Number(config.UpdateGraceMinutes)}\n    WebPort = ${Number(config.WebPort)}\n    WebBindAddress = '${psdValue(config.WebBindAddress)}'\n    WebRemoteAddress = '${psdValue(config.WebRemoteAddress)}'\n    ManagerTitle = '${psdValue(config.ManagerTitle)}'\n    ManagerSubtitle = '${psdValue(config.ManagerSubtitle)}'\n    HostDisplayName = '${psdValue(config.HostDisplayName)}'\n    AccentColor = '${psdValue(config.AccentColor)}'\n}\n`;
+  const content = `@{\n    AppId = ${config.AppId}\n    InstallRoot = '${psdValue(config.InstallRoot)}'\n    SteamCmdPath = '${psdValue(config.SteamCmdPath)}'\n    BackupRoot = '${psdValue(config.BackupRoot)}'\n    ServerExecutableRelativePath = '${psdValue(config.ServerExecutableRelativePath)}'\n    GamePort = ${Number(config.GamePort)}\n    Public = ${config.Public ? 1 : 0}\n    ServerName = '${psdValue(config.ServerName)}'\n    WorldName = '${psdValue(config.WorldName)}'\n    PlatformPolicy = '${psdValue(config.PlatformPolicy)}'\n    MaxPlayers = ${Number(config.MaxPlayers)}\n    LogRetentionDays = ${Number(config.LogRetentionDays)}\n    UpdateCheckHours = ${Number(config.UpdateCheckHours)}\n    UpdateGraceMinutes = ${Number(config.UpdateGraceMinutes)}\n    WebPort = ${Number(config.WebPort)}\n    WebBindAddress = '${psdValue(config.WebBindAddress)}'\n    WebRemoteAddress = '${psdValue(config.WebRemoteAddress)}'\n    ManagerTitle = '${psdValue(config.ManagerTitle)}'\n    ManagerSubtitle = '${psdValue(config.ManagerSubtitle)}'\n    HostDisplayName = '${psdValue(config.HostDisplayName)}'\n    AccentColor = '${psdValue(config.AccentColor)}'\n}\n`;
   const secretContent = `@{\n    OwnerId = '${psdValue(secrets.OwnerId)}'\n    AdminPassword = '${psdValue(secrets.AdminPassword)}'\n    WorldPassword = '${psdValue(secrets.WorldPassword)}'\n}\n`;
   await fs.writeFile(configPath, content, 'utf8');
   await fs.writeFile(secretPath, secretContent, 'utf8');
@@ -188,6 +188,8 @@ app.get('/api/setup/status', async (_, response) => {
       remoteAddress: config.WebRemoteAddress,
       serverName: config.ServerName,
       worldName: config.WorldName,
+      platformPolicy: config.PlatformPolicy,
+      maxPlayers: config.MaxPlayers,
       public: Boolean(config.Public),
       updateCheckHours: config.UpdateCheckHours,
       updateGraceMinutes: config.UpdateGraceMinutes,
@@ -215,6 +217,8 @@ app.post('/api/setup', async (request, response) => {
   const webPort = Number(next.webPort);
   const updateCheckHours = Number(next.updateCheckHours);
   const updateGraceMinutes = Number(next.updateGraceMinutes);
+  const platformPolicy = clean(next.platformPolicy) || 'Crossplay';
+  const maxPlayers = Number(next.maxPlayers);
   const bindAddress = clean(next.bindAddress) || '0.0.0.0';
   const remoteAddress = clean(next.remoteAddress) || 'LocalSubnet';
   const skipServerInstall = Boolean(next.skipServerInstall);
@@ -230,6 +234,8 @@ app.post('/api/setup', async (request, response) => {
   if (!/^[A-Za-z0-9.:,\/-]+$/.test(remoteAddress)) return response.status(400).json({ error: 'Firewall scope contains unsupported characters.' });
   if (!Number.isInteger(updateCheckHours) || updateCheckHours < 1 || updateCheckHours > 24) return response.status(400).json({ error: 'Update interval must be between 1 and 24 hours.' });
   if (!Number.isInteger(updateGraceMinutes) || updateGraceMinutes < 0 || updateGraceMinutes > 60) return response.status(400).json({ error: 'Update grace period must be between 0 and 60 minutes.' });
+  if (!['Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo'].includes(platformPolicy)) return response.status(400).json({ error: 'Platform policy is invalid.' });
+  if (!Number.isInteger(maxPlayers) || maxPlayers < 1 || maxPlayers > 6) return response.status(400).json({ error: 'Player cap must be between 1 and 6.' });
   if (dashboardPassword.length < 8) return response.status(400).json({ error: 'Dashboard password must be at least eight characters.' });
   if (!/^#[0-9a-f]{6}$/i.test(accentColor)) return response.status(400).json({ error: 'Accent color must be a six-digit hex color.' });
 
@@ -250,6 +256,8 @@ app.post('/api/setup', async (request, response) => {
       config.WorldName = worldName;
       config.UpdateCheckHours = updateCheckHours;
       config.UpdateGraceMinutes = updateGraceMinutes;
+      config.PlatformPolicy = platformPolicy;
+      config.MaxPlayers = maxPlayers;
     } else {
       await invoke('Install-DragonWildsServer.ps1', [
         '-InstallRoot', installRoot,
@@ -258,6 +266,8 @@ app.post('/api/setup', async (request, response) => {
         '-GamePort', String(gamePort),
         '-ServerName', serverName,
         '-WorldName', worldName,
+        '-PlatformPolicy', platformPolicy,
+        '-MaxPlayers', String(maxPlayers),
         '-UpdateCheckHours', String(updateCheckHours),
         '-UpdateGraceMinutes', String(updateGraceMinutes)
       ]);
@@ -269,6 +279,8 @@ app.post('/api/setup', async (request, response) => {
     config.HostDisplayName = clean(next.hostDisplayName) || process.env.COMPUTERNAME || 'Windows Server';
     config.AccentColor = accentColor;
     config.Public = next.public ? 1 : 0;
+    config.PlatformPolicy = platformPolicy;
+    config.MaxPlayers = maxPlayers;
     config.WebPort = webPort;
     config.WebBindAddress = bindAddress;
     config.WebRemoteAddress = remoteAddress;
@@ -309,7 +321,7 @@ app.get('/api/logs', requireAuth, async (_, response) => {
 });
 app.get('/api/player-query', requireAuth, async (_, response) => {
   const config = await readConfig();
-  response.json(await playerQuery(config.GamePort));
+  response.json(await playerQuery());
 });
 app.get('/api/update-status', requireAuth, async (_, response) => response.json(await updateStatus()));
 app.get('/api/config', requireAuth, async (_, response) => {
@@ -323,8 +335,8 @@ app.get('/api/config', requireAuth, async (_, response) => {
     backupRoot: config.BackupRoot || path.join(stateRoot, 'backups'),
     steamCmdPath: config.SteamCmdPath,
     executablePath: path.join(config.InstallRoot, config.ServerExecutableRelativePath),
-    platformPolicy: 'Crossplay',
-    maxPlayers: 6,
+    platformPolicy: config.PlatformPolicy || 'Crossplay',
+    maxPlayers: config.MaxPlayers ?? 6,
     updateCheckHours: config.UpdateCheckHours ?? 1,
     updateGraceMinutes: config.UpdateGraceMinutes ?? 10,
     managerTitle: config.ManagerTitle || 'Dragonwilds Server',
@@ -350,6 +362,8 @@ app.put('/api/config', requireAuth, async (request, response) => {
   if (!Number.isInteger(Number(next.webPort)) || Number(next.webPort) < 1 || Number(next.webPort) > 65535) return response.status(400).json({ error: 'Dashboard port must be between 1 and 65535.' });
   if (!Number.isInteger(Number(next.updateCheckHours)) || Number(next.updateCheckHours) < 1 || Number(next.updateCheckHours) > 24) return response.status(400).json({ error: 'Update interval must be between 1 and 24 hours.' });
   if (!Number.isInteger(Number(next.updateGraceMinutes)) || Number(next.updateGraceMinutes) < 0 || Number(next.updateGraceMinutes) > 60) return response.status(400).json({ error: 'Update grace period must be between 0 and 60 minutes.' });
+  if (!['Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo'].includes(clean(next.platformPolicy))) return response.status(400).json({ error: 'Platform policy is invalid.' });
+  if (!Number.isInteger(Number(next.maxPlayers)) || Number(next.maxPlayers) < 1 || Number(next.maxPlayers) > 6) return response.status(400).json({ error: 'Player cap must be between 1 and 6.' });
   if (!/^(0\.0\.0\.0|127\.0\.0\.1|localhost|(?:\d{1,3}\.){3}\d{1,3})$/i.test(clean(next.bindAddress))) return response.status(400).json({ error: 'Dashboard bind address must be an IPv4 address, localhost, or 0.0.0.0.' });
   if (!/^[A-Za-z0-9.:,\/-]+$/.test(clean(next.remoteAddress))) return response.status(400).json({ error: 'Firewall scope contains unsupported characters.' });
   config.ServerName = clean(next.serverName); config.WorldName = clean(next.worldName); config.Public = next.public ? 1 : 0;
@@ -363,6 +377,8 @@ app.put('/api/config', requireAuth, async (request, response) => {
   config.GamePort = Number(next.gamePort);
   config.UpdateCheckHours = Number(next.updateCheckHours);
   config.UpdateGraceMinutes = Number(next.updateGraceMinutes);
+  config.PlatformPolicy = clean(next.platformPolicy);
+  config.MaxPlayers = Number(next.maxPlayers);
   config.WebPort = Number(next.webPort);
   config.WebBindAddress = clean(next.bindAddress);
   config.WebRemoteAddress = clean(next.remoteAddress);

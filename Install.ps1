@@ -6,6 +6,8 @@ param(
     [ValidateRange(1, 65535)][int]$GamePort = 7777,
     [string]$ServerName,
     [string]$WorldName = 'Dragonwilds',
+    [ValidateSet('Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo')][string]$PlatformPolicy = 'Crossplay',
+    [ValidateRange(1, 6)][int]$MaxPlayers = 6,
     [string]$OwnerId,
     [ValidateRange(1, 24)][int]$UpdateCheckHours = 1,
     [ValidateRange(0, 60)][int]$UpdateGraceMinutes = 10,
@@ -53,12 +55,16 @@ if (-not $DashboardPassword) { $DashboardPassword = Read-Host 'Dashboard passwor
     -GamePort $GamePort `
     -ServerName $ServerName `
     -WorldName $WorldName `
+    -PlatformPolicy $PlatformPolicy `
+    -MaxPlayers $MaxPlayers `
     -UpdateCheckHours $UpdateCheckHours `
     -UpdateGraceMinutes $UpdateGraceMinutes
 
 & (Join-Path $scripts 'Configure-DragonWildsServer.ps1') `
     -ServerName $ServerName `
     -WorldName $WorldName `
+    -PlatformPolicy $PlatformPolicy `
+    -MaxPlayers $MaxPlayers `
     -OwnerId $OwnerId `
     -WorldPassword $WorldPassword `
     -AdminPassword $AdminPassword `
