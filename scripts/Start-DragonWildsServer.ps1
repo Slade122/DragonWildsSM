@@ -7,7 +7,7 @@ if ($existing) {
     return
 }
 
-$secrets = Get-DragonWildsSecrets
+$secrets = Get-DragonWildsSecret
 $settingsDirectory = Join-Path $config.InstallRoot 'RSDragonwilds\Saved\Config\WindowsServer'
 New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
 $settingsPath = Join-Path $settingsDirectory 'DedicatedServer.ini'

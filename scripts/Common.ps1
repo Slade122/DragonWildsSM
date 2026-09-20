@@ -19,7 +19,7 @@ function Write-DragonWildsLog {
     Initialize-DragonWildsState
     $line = '{0:o} [{1}] {2}' -f (Get-Date), $Level, $Message
     Add-Content -LiteralPath (Join-Path $script:LogDirectory 'manager.log') -Value $line
-    Write-Host $line
+    Write-Information $line -InformationAction Continue
 }
 
 function Get-DragonWildsConfig {
@@ -37,7 +37,7 @@ function Get-DragonWildsConfig {
     return $config
 }
 
-function Get-DragonWildsSecrets {
+function Get-DragonWildsSecret {
     if (-not (Test-Path -LiteralPath $script:SecretsPath)) {
         return @{}
     }
@@ -65,6 +65,7 @@ function Get-DragonWildsProcess {
 }
 
 function Set-RestrictedFileAcl {
+    [CmdletBinding(SupportsShouldProcess)]
     param([Parameter(Mandatory)][string]$Path)
 
     $acl = Get-Acl -LiteralPath $Path
@@ -79,7 +80,9 @@ function Set-RestrictedFileAcl {
         [void]$acl.AddAccessRule($rule)
     }
 
-    Set-Acl -LiteralPath $Path -AclObject $acl
+    if ($PSCmdlet.ShouldProcess($Path, 'Restrict file permissions to Administrators and SYSTEM')) {
+        Set-Acl -LiteralPath $Path -AclObject $acl
+    }
 }
 
 function ConvertTo-Psd1Literal {
