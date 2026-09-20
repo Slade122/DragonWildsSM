@@ -40,13 +40,23 @@ const invoke = async (script, args = []) => {
 const health = async () => {
   try {
     const output = await invoke('Get-DragonWildsHealth.ps1');
-    return JSON.parse(output);
+    return normalizeStatus(JSON.parse(output));
   } catch (error) {
     const match = error.stdout?.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
+    if (match) return normalizeStatus(JSON.parse(match[0]));
     throw error;
   }
 };
+const normalizeStatus = (status) => ({
+  timestamp: status.Timestamp ?? status.timestamp,
+  running: Boolean(status.Running ?? status.running),
+  processId: status.ProcessId ?? status.processId ?? null,
+  gamePort: status.GamePort ?? status.gamePort,
+  portBound: Boolean(status.PortBound ?? status.portBound),
+  firewallRulePresent: Boolean(status.FirewallRulePresent ?? status.firewallRulePresent),
+  startTaskState: status.StartTaskState ?? status.startTaskState,
+  watchdogTaskState: status.WatchdogTaskState ?? status.watchdogTaskState
+});
 const dataFile = async (file) => {
   const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', `$data = Import-PowerShellDataFile -LiteralPath '${file}'; $data | ConvertTo-Json -Compress`], { windowsHide: true });
   return JSON.parse(stdout);
