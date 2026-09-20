@@ -4,7 +4,7 @@ Windows PowerShell management for a RuneScape: Dragonwilds dedicated server. It 
 
 ## Before deployment
 
-The target must have at least **25 GB free** on the selected install volume, 64-bit Windows, SteamCMD, and TCP/22 access for remote deployment. Dragonwilds uses UDP `7777`; forward that port on the edge firewall to the host for off-LAN friends.
+The target must have at least **25 GB free** on the selected install volume, 64-bit Windows, SteamCMD, and TCP/22 access for remote deployment. Dragonwilds uses UDP `7778` by default in this project, deliberately avoiding the existing server on FarmSim25's UDP `7777`; forward that port on the edge firewall to the host for off-LAN friends.
 
 `FarmSim25` currently has only 17.5 GB free on `C:`, so do not run the installer there until storage is expanded or an alternate volume is mounted.
 
@@ -51,7 +51,7 @@ The tracked template is `config\ServerConfig.example.psd1`. Installation writes 
 
 ## Network
 
-Create an inbound Windows Firewall rule and a pfSense NAT/firewall rule for **UDP 7777** to the server's static LAN address. The application is public when `Public=1` in the generated `DedicatedServer.ini`.
+Create an inbound Windows Firewall rule and a pfSense NAT/firewall rule for the configured UDP port (default **7778**) to the server's static LAN address. The application is public when `Public=1` in the generated `DedicatedServer.ini`.
 
 ## Deployment
 

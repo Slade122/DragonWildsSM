@@ -24,5 +24,15 @@ Set-Content -LiteralPath $settingsPath -Value $settings -Encoding utf8
 Set-RestrictedFileAcl -Path $settingsPath
 
 $executable = Get-DragonWildsExecutablePath -Config $config
-Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable) -ArgumentList '-log', '-NewConsole' | Out-Null
-Write-DragonWildsLog "Started Dragonwilds server from '$executable'."
+Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable) -ArgumentList ('-port={0}' -f $config.GamePort) | Out-Null
+$deadline = (Get-Date).AddSeconds(60)
+do {
+    Start-Sleep -Seconds 2
+    $serverProcess = Get-DragonWildsProcess -Config $config
+} until ($serverProcess -or (Get-Date) -ge $deadline)
+
+if (-not $serverProcess) {
+    throw 'Dragonwilds launcher exited without starting its shipping-server process. Inspect the game log.'
+}
+
+Write-DragonWildsLog "Started Dragonwilds server with PID $($serverProcess.ProcessId)."

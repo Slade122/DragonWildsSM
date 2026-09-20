@@ -9,7 +9,7 @@ $health = [ordered]@{
     ProcessId = if ($process) { $process.ProcessId } else { $null }
     GamePort = $config.GamePort
     PortBound = [bool]$udpListener
-    FirewallRulePresent = [bool](Get-NetFirewallRule -DisplayName 'DragonWilds Dedicated Server UDP 7777' -ErrorAction SilentlyContinue)
+    FirewallRulePresent = [bool](Get-NetFirewallRule -DisplayName "DragonWilds Dedicated Server UDP $($config.GamePort)" -ErrorAction SilentlyContinue)
     StartTaskState = (Get-ScheduledTask -TaskName 'DragonWildsServer' -ErrorAction SilentlyContinue).State
     WatchdogTaskState = (Get-ScheduledTask -TaskName 'DragonWildsServerWatchdog' -ErrorAction SilentlyContinue).State
 }

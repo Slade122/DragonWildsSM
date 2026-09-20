@@ -59,9 +59,10 @@ function Get-DragonWildsExecutablePath {
 function Get-DragonWildsProcess {
     param([Parameter(Mandatory)][hashtable]$Config)
 
-    $executable = Get-DragonWildsExecutablePath -Config $Config
-    Get-CimInstance Win32_Process -Filter "Name='RSDragonwildsServer.exe'" |
-        Where-Object { $_.ExecutablePath -eq $executable }
+    $serverDirectory = Split-Path -Parent (Get-DragonWildsExecutablePath -Config $Config)
+    $shippingExecutable = Join-Path $serverDirectory 'RSDragonwilds\Binaries\Win64\RSDragonwildsServer-Win64-Shipping.exe'
+    Get-CimInstance Win32_Process -Filter "Name='RSDragonwildsServer-Win64-Shipping.exe'" |
+        Where-Object { $_.ExecutablePath -eq $shippingExecutable }
 }
 
 function Set-RestrictedFileAcl {

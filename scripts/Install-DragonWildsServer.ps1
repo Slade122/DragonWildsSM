@@ -56,9 +56,10 @@ $configText = $configText.Replace("ServerExecutableRelativePath = 'RSDragonwilds
 Set-Content -LiteralPath $script:ConfigPath -Value $configText -Encoding utf8
 Set-RestrictedFileAcl -Path $script:ConfigPath
 
-$ruleName = 'DragonWilds Dedicated Server UDP 7777'
+$gamePort = 7778
+$ruleName = "DragonWilds Dedicated Server UDP $gamePort"
 if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol UDP -LocalPort 7777 |
+    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol UDP -LocalPort $gamePort |
         Out-Null
 }
 

@@ -3,7 +3,7 @@
     InstallRoot = 'E:\DragonWildsServer'
     SteamCmdPath = 'C:\steamcmd\steamcmd.exe'
     ServerExecutableRelativePath = 'RSDragonwilds\Binaries\Win64\RSDragonwildsServer.exe'
-    GamePort = 7777
+    GamePort = 7778
     Public = 1
     ServerName = 'DragonWilds Homies'
     WorldName = 'DragonWilds'
