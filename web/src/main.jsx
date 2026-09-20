@@ -22,6 +22,12 @@ const actionLabels = {
   'scheduled-update': 'Start update cycle'
 };
 
+const rate = value => {
+  const amount = Number(value || 0);
+  if (amount >= 1024) return `${(amount / 1024).toFixed(1)} MB/s`;
+  return `${amount.toFixed(1)} KB/s`;
+};
+
 function Login({ onLogin }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -312,11 +318,14 @@ function App() {
         </div>
       </div>
       <div className="panel">
-        <div className="panel-title"><p className="eyebrow">Host load</p><h3>{config.hostDisplayName}</h3></div>
-        <div className="meter"><span style={{ width: `${Math.min(status.ServerCpuPercent || 0, 100)}%` }} /></div>
-        <p className="meter-label">{status.ServerCpuPercent}% server CPU</p>
-        <div className="meter"><span style={{ width: `${Math.min(status.HostMemoryUsedPercent || 0, 100)}%` }} /></div>
-        <p className="meter-label">{status.ServerMemoryMB} MB server RAM · {status.DiskFreeGB} GB free</p>
+        <div className="panel-title"><p className="eyebrow">{config.hostDisplayName}</p><h3>Dragonwilds process</h3></div>
+        <div className="resource-list">
+          <div className="resource-row"><span>CPU</span><b>{status.ServerCpuPercent}%</b><div className="meter"><i style={{ width: `${Math.min(status.ServerCpuPercent || 0, 100)}%` }} /></div></div>
+          <div className="resource-row"><span>Memory</span><b>{status.ServerMemoryMB} MB</b><div className="meter"><i style={{ width: `${Math.min(status.ServerMemoryPercent || 0, 100)}%` }} /></div><small>{status.ServerPrivateMemoryMB} MB private</small></div>
+          <div className="resource-row split"><span>Disk I/O</span><b>R {rate(status.ServerDiskReadKBps)} · W {rate(status.ServerDiskWriteKBps)}</b></div>
+          <div className="resource-row split"><span>Network I/O</span><b>{rate(status.ServerNetworkIOKBps)}</b><small>Process socket/other I/O</small></div>
+          <div className="resource-row split"><span>Runtime</span><b>{status.ServerThreads} threads · {status.ServerHandles} handles</b></div>
+        </div>
       </div>
       <div className="panel">
         <div className="panel-title"><p className="eyebrow">Steam watch</p><h3>Updates</h3></div>

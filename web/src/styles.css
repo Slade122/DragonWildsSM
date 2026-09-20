@@ -384,9 +384,55 @@ h3 { margin: 0 0 8px; font-size: 1.45rem; }
   background: linear-gradient(90deg, #638d43, #d6a64a);
 }
 
+.meter i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #638d43, var(--accent));
+}
+
 .meter-label {
   margin: 7px 0 16px;
   font-size: .86rem;
+}
+
+.resource-list {
+  display: grid;
+  gap: 14px;
+}
+
+.resource-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+}
+
+.resource-row > span {
+  color: #b9b29d;
+  font-size: .75rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.resource-row > b {
+  color: #efe3c7;
+  font-size: .86rem;
+}
+
+.resource-row .meter {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.resource-row small {
+  grid-column: 1 / -1;
+  color: #918b7a;
+}
+
+.resource-row.split {
+  padding-top: 11px;
+  border-top: 1px solid rgba(202, 158, 74, .2);
 }
 
 .countdown,
