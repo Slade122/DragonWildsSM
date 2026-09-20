@@ -34,7 +34,54 @@ function Get-DragonWildsConfig {
         }
     }
 
+    $defaults = @{
+        LogRetentionDays = 30
+        BackupRoot = (Join-Path $script:StateRoot 'backups')
+        UpdateCheckHours = 1
+        UpdateGraceMinutes = 10
+        WebPort = 8787
+        WebBindAddress = '0.0.0.0'
+        WebRemoteAddress = 'LocalSubnet'
+        ManagerTitle = 'Dragonwilds Server'
+        ManagerSubtitle = 'Dedicated server command center'
+        HostDisplayName = $env:COMPUTERNAME
+        AccentColor = '#d9aa50'
+    }
+    foreach ($name in $defaults.Keys) {
+        if (-not $config.ContainsKey($name)) {
+            $config[$name] = $defaults[$name]
+        }
+    }
+
     return $config
+}
+
+function ConvertTo-DragonWildsConfigContent {
+    param([Parameter(Mandatory)][hashtable]$Config)
+
+    return @"
+@{
+    AppId = $($Config.AppId)
+    InstallRoot = $(ConvertTo-Psd1Literal $Config.InstallRoot)
+    SteamCmdPath = $(ConvertTo-Psd1Literal $Config.SteamCmdPath)
+    BackupRoot = $(ConvertTo-Psd1Literal $Config.BackupRoot)
+    ServerExecutableRelativePath = $(ConvertTo-Psd1Literal $Config.ServerExecutableRelativePath)
+    GamePort = $($Config.GamePort)
+    Public = $($Config.Public)
+    ServerName = $(ConvertTo-Psd1Literal $Config.ServerName)
+    WorldName = $(ConvertTo-Psd1Literal $Config.WorldName)
+    LogRetentionDays = $($Config.LogRetentionDays)
+    UpdateCheckHours = $($Config.UpdateCheckHours)
+    UpdateGraceMinutes = $($Config.UpdateGraceMinutes)
+    WebPort = $($Config.WebPort)
+    WebBindAddress = $(ConvertTo-Psd1Literal $Config.WebBindAddress)
+    WebRemoteAddress = $(ConvertTo-Psd1Literal $Config.WebRemoteAddress)
+    ManagerTitle = $(ConvertTo-Psd1Literal $Config.ManagerTitle)
+    ManagerSubtitle = $(ConvertTo-Psd1Literal $Config.ManagerSubtitle)
+    HostDisplayName = $(ConvertTo-Psd1Literal $Config.HostDisplayName)
+    AccentColor = $(ConvertTo-Psd1Literal $Config.AccentColor)
+}
+"@
 }
 
 function Get-DragonWildsSecret {

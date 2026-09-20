@@ -1,5 +1,17 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][SecureString]$DashboardPassword)
+param(
+    [SecureString]$DashboardPassword,
+    [ValidatePattern('^[A-Za-z]:\\')][string]$InstallRoot = 'C:\DragonWildsServer',
+    [ValidatePattern('^(?:[A-Za-z]:\\|\\\\[^\\]+\\[^\\]+)')][string]$BackupRoot = 'C:\ProgramData\DragonWildsSM\backups',
+    [string]$SteamCmdPath = 'C:\steamcmd\steamcmd.exe',
+    [ValidateRange(1, 65535)][int]$WebPort,
+    [string]$BindAddress,
+    [string]$RemoteAddress,
+    [string]$ManagerTitle,
+    [string]$ManagerSubtitle,
+    [string]$HostDisplayName,
+    [ValidatePattern('^#[0-9A-Fa-f]{6}$')][string]$AccentColor
+)
 
 . $PSScriptRoot\Common.ps1
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -28,24 +40,61 @@ try {
 finally { Pop-Location }
 
 Initialize-DragonWildsState
-$plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($DashboardPassword))
-$salt = [Guid]::NewGuid().ToString('N')
-$deriver = [Security.Cryptography.Rfc2898DeriveBytes]::new($plain, [Text.Encoding]::UTF8.GetBytes($salt), 210000)
-try {
-    $hash = ([BitConverter]::ToString($deriver.GetBytes(64))).Replace('-', '').ToLowerInvariant()
+$config = if (Test-Path -LiteralPath $script:ConfigPath) {
+    Get-DragonWildsConfig
 }
-finally {
-    $deriver.Dispose()
+else {
+    @{
+        AppId = 4019830
+        InstallRoot = $InstallRoot
+        SteamCmdPath = $SteamCmdPath
+        BackupRoot = $BackupRoot
+        ServerExecutableRelativePath = 'RSDragonwilds\Binaries\Win64\RSDragonwildsServer.exe'
+        GamePort = 7777
+        Public = 1
+        ServerName = 'My Dragonwilds Server'
+        WorldName = 'Dragonwilds'
+        LogRetentionDays = 30
+        UpdateCheckHours = 1
+        UpdateGraceMinutes = 10
+        WebPort = 8787
+        WebBindAddress = '0.0.0.0'
+        WebRemoteAddress = 'LocalSubnet'
+        ManagerTitle = 'Dragonwilds Server'
+        ManagerSubtitle = 'Dedicated server command center'
+        HostDisplayName = $env:COMPUTERNAME
+        AccentColor = '#d9aa50'
+    }
 }
-@{ salt = $salt; hash = $hash } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:ConfigDirectory 'WebUiAuth.json') -Encoding utf8
-Set-RestrictedFileAcl -Path (Join-Path $script:ConfigDirectory 'WebUiAuth.json')
+if ($PSBoundParameters.ContainsKey('WebPort')) { $config.WebPort = $WebPort }
+if ($BindAddress) { $config.WebBindAddress = $BindAddress }
+if ($RemoteAddress) { $config.WebRemoteAddress = $RemoteAddress }
+if ($ManagerTitle) { $config.ManagerTitle = $ManagerTitle }
+if ($ManagerSubtitle) { $config.ManagerSubtitle = $ManagerSubtitle }
+if ($HostDisplayName) { $config.HostDisplayName = $HostDisplayName }
+if ($AccentColor) { $config.AccentColor = $AccentColor }
+Set-Content -LiteralPath $script:ConfigPath -Value (ConvertTo-DragonWildsConfigContent -Config $config) -Encoding utf8
+Set-RestrictedFileAcl -Path $script:ConfigPath
 
-$rule = 'DragonWilds Manager HTTP 8787'
-if (-not (Get-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName $rule -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8787 -RemoteAddress LocalSubnet | Out-Null
+if ($DashboardPassword) {
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($DashboardPassword)
+    try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+    $salt = [Guid]::NewGuid().ToString('N')
+    $deriver = [Security.Cryptography.Rfc2898DeriveBytes]::new($plain, [Text.Encoding]::UTF8.GetBytes($salt), 210000)
+    try {
+        $hash = ([BitConverter]::ToString($deriver.GetBytes(64))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $deriver.Dispose()
+    }
+    @{ salt = $salt; hash = $hash } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:ConfigDirectory 'WebUiAuth.json') -Encoding utf8
+    Set-RestrictedFileAcl -Path (Join-Path $script:ConfigDirectory 'WebUiAuth.json')
 }
+
 $action = New-ScheduledTaskAction -Execute $nodeExe -Argument (Join-Path $webRoot 'server.mjs') -WorkingDirectory $webRoot
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName 'DragonWildsManager' -Action $action -Trigger $trigger -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+& (Join-Path $PSScriptRoot 'Apply-DragonWildsConfiguration.ps1')
 Start-ScheduledTask -TaskName 'DragonWildsManager'

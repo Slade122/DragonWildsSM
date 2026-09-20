@@ -1,85 +1,152 @@
 # DragonWildsSM
 
-LAN management for a RuneScape: Dragonwilds dedicated server. It installs and updates Steam app `4019830`, manages startup/recovery, and includes a password-protected React dashboard for configuration, updates, and live health.
+A self-hosted Windows manager for the RuneScape: Dragonwilds dedicated server. It installs Steam app `4019830`, manages startup and recovery, performs scheduled updates, creates world backups, and provides a password-protected React dashboard.
 
-## Before deployment
+## Features
 
-The target must have at least **25 GB free** on the selected install volume, 64-bit Windows, SteamCMD, and TCP/22 access for remote deployment. Dragonwilds uses UDP `7778` by default in this project, deliberately avoiding the existing server on FarmSim25's UDP `7777`; forward that port on the edge firewall to the host for off-LAN friends.
+- Interactive installer with configurable game, SteamCMD, and backup locations
+- Configurable game port, server/world names, owner SteamID64, and passwords
+- Custom dashboard title, subtitle, host label, accent color, port, and access scope
+- Automatic startup and five-minute watchdog tasks
+- Hourly-by-default Steam build checks with a configurable shutdown grace period
+- Safe save backups to any local drive or UNC path available to `SYSTEM`
+- Process, network, CPU, memory, disk, save, update, and log monitoring
+- LAN-restricted dashboard firewall rule by default
 
-## Quick start on the server
+## Requirements
 
-Run PowerShell as Administrator:
+- 64-bit Windows with PowerShell 5.1 or newer
+- Administrator access
+- At least 25 GB free on the selected game volume
+- Internet access for SteamCMD and Node.js downloads
+- UDP access to the configured game port
 
-```powershell
-git clone https://github.com/Slade122/DragonWildsSM.git C:\DragonWildsSM
-Set-Location C:\DragonWildsSM
-.\scripts\Install-DragonWildsServer.ps1 -InstallRoot C:\DragonWildsServer
-.\scripts\Configure-DragonWildsServer.ps1
-.\scripts\Start-DragonWildsServer.ps1
-.\scripts\Get-DragonWildsHealth.ps1
-```
+## Install
 
-`Install-DragonWildsServer.ps1` downloads SteamCMD when necessary, validates the dedicated-server files, configures the firewall, and registers:
-
-- `DragonWildsServer` — starts at boot as `SYSTEM`.
-- `DragonWildsServerWatchdog` — runs every five minutes and restarts a stopped server.
-- `DragonWildsAutoUpdate` — checks Steam hourly; when a new build is available it gives a 10-minute grace window, then stops, validates/updates, and restarts.
-
-## Operations
+Clone the repository wherever you want the manager installed, then launch the browser-based setup from an elevated PowerShell window:
 
 ```powershell
-# Apply an upstream update safely: stop, validate-update, start.
-.\scripts\Update-DragonWildsServer.ps1
-
-# Check Steam build status without restarting.
-.\scripts\Get-DragonWildsUpdateStatus.ps1
-
-# Automated update flow: check, wait 10 minutes if needed, update, restart.
-.\scripts\Invoke-ScheduledUpdate.ps1 -GraceMinutes 10
-
-# Stop or start the game process.
-.\scripts\Stop-DragonWildsServer.ps1
-.\scripts\Start-DragonWildsServer.ps1
-
-# Emit health as JSON; non-zero exit means unhealthy.
-.\scripts\Get-DragonWildsHealth.ps1
-
-# Run the watchdog once, or let its scheduled task handle it.
-.\scripts\Monitor-DragonWildsServer.ps1
+git clone https://github.com/Slade122/DragonWildsSM.git D:\Tools\DragonWildsSM
+Set-Location D:\Tools\DragonWildsSM
+.\Install.ps1
 ```
+
+`Install.ps1` installs the local Node runtime, registers the manager service, opens `http://localhost:8787`, and detects that no server has been installed. The first-run wizard then configures:
+
+- Game, SteamCMD, and backup locations
+- Existing-server detection with an option to skip SteamCMD installation
+- Game and dashboard ports
+- Dashboard bind address and Windows Firewall scope
+- Server/world names, public visibility, and owner SteamID64
+- World, admin, and dashboard passwords
+- Automatic-update interval and shutdown grace period
+- Dashboard title, subtitle, host label, and accent color
+
+Every option can also be supplied non-interactively, which bypasses the browser wizard:
+
+```powershell
+.\Install.ps1 `
+  -InstallRoot 'D:\GameServers\Dragonwilds' `
+  -BackupRoot '\\nas\game-backups\dragonwilds' `
+  -SteamCmdPath 'D:\SteamCMD\steamcmd.exe' `
+  -GamePort 7777 `
+  -ServerName 'Weekend Wilds' `
+  -WorldName 'Valhalla' `
+  -OwnerId '76561198000000000' `
+  -UpdateCheckHours 2 `
+  -UpdateGraceMinutes 15 `
+  -WebPort 8787 `
+  -ManagerTitle 'Weekend Wilds' `
+  -ManagerSubtitle 'Private clan realm' `
+  -HostDisplayName 'Game Server 01' `
+  -AccentColor '#c98b3c' `
+  -WorldPassword (Read-Host -AsSecureString) `
+  -AdminPassword (Read-Host -AsSecureString) `
+  -DashboardPassword (Read-Host -AsSecureString)
+```
+
+The manager location is simply the directory where the repository is cloned. The game and backup locations are independent and may use different volumes.
+
+## Remote deployment
+
+`Deploy-ToServer.ps1` supports any OpenSSH-accessible Windows host:
+
+```powershell
+.\scripts\Deploy-ToServer.ps1 `
+  -HostName game-server `
+  -ManagerRoot 'D:\Tools\DragonWildsSM' `
+  -InstallRoot 'E:\GameServers\Dragonwilds' `
+  -BackupRoot '\\nas\backups\dragonwilds' `
+  -GamePort 7777 `
+  -ServerName 'Weekend Wilds'
+```
+
+## Dashboard customization
+
+The **Realm** page allows an administrator to change:
+
+- Server and world names
+- Owner SteamID64
+- Game and dashboard ports
+- World and admin passwords
+- Public-listing state
+- Backup location
+- Update-check interval and grace period
+- Dashboard bind address and firewall scope
+- Dashboard title and subtitle
+- Host display name
+- Accent color
+
+The game installation directory is selected during first-run setup because changing it later requires moving or reinstalling Steam content. The dashboard displays the active game, backup, executable, and SteamCMD paths.
+
+For settings that affect how the dashboard process starts, rerun:
+
+```powershell
+.\scripts\Install-WebManager.ps1 `
+  -DashboardPassword (Read-Host -AsSecureString) `
+  -WebPort 8787 `
+  -BindAddress '0.0.0.0' `
+  -RemoteAddress 'LocalSubnet'
+```
+
+`RemoteAddress` is passed to Windows Firewall. Keep `LocalSubnet` unless you intentionally want broader dashboard access. The dashboard uses plain HTTP and should not be exposed directly to the internet.
+
+## Scheduled tasks
+
+- `DragonWildsServer` starts the game server at boot.
+- `DragonWildsServerWatchdog` checks every five minutes and restarts a stopped server.
+- `DragonWildsAutoUpdate` checks Steam at the configured interval. When an update is available, it records the deadline, waits the configured grace period, stops the server, updates and validates it, then restarts it.
+- `DragonWildsManager` starts the web dashboard at boot.
 
 ## Configuration and secrets
 
-The tracked template is `config\ServerConfig.example.psd1`. Installation writes the active configuration to `C:\ProgramData\DragonWildsSM\config\ServerConfig.psd1`; passwords and the optional Steam owner ID live separately in `ServerSecrets.psd1` with Administrator/SYSTEM-only ACLs. Neither secret file belongs in Git.
+Runtime files are stored under `C:\ProgramData\DragonWildsSM`:
 
-`Configure-DragonWildsServer.ps1` requests the public server name, world name, optional world password, optional admin password, and optional SteamID64 owner. Leave a password blank for an open server.
+- `config\ServerConfig.psd1` contains non-secret settings.
+- `config\ServerSecrets.psd1` contains owner/admin/world credentials.
+- `config\WebUiAuth.json` contains the salted dashboard password hash.
+- `update-status.json` contains update progress.
+- `logs\manager.log` contains manager activity.
 
-## Web manager
+Secret files are restricted to Administrators and `SYSTEM` and are excluded from Git.
 
-Build the dashboard before deploying:
-
-```powershell
-Set-Location web
-npm install
-npm run build
-```
-
-Then install it on the server from elevated PowerShell:
+## Manual operations
 
 ```powershell
-.\scripts\Install-WebManager.ps1 -DashboardPassword (Read-Host -AsSecureString)
+.\scripts\Start-DragonWildsServer.ps1
+.\scripts\Stop-DragonWildsServer.ps1
+.\scripts\Update-DragonWildsServer.ps1
+.\scripts\Get-DragonWildsUpdateStatus.ps1
+.\scripts\Invoke-ScheduledUpdate.ps1
+.\scripts\Get-DragonWildsHealth.ps1
 ```
 
-The dashboard listens only on the LAN at `http://<server-LAN-IP>:8787`. It uses a local password stored as a PBKDF2 hash in `C:\ProgramData\DragonWildsSM\config\WebUiAuth.json`, inaccessible to normal users. The Windows Firewall rule is limited to `LocalSubnet`; do not expose this HTTP dashboard through pfSense or nginx.
-
-The dashboard shows Dragonwilds process CPU, memory, virtual memory, storage, saves, network, logs, install paths, update state, and every supported dedicated-server setting. It starts/stops/restarts the server, runs SteamCMD updates, starts the 10-minute scheduled-update flow, makes safe world backups, and updates server/world/password settings. Password fields stay blank in the UI until explicitly changed.
-
-Dragonwilds does not respond to Steam A2S player queries on the game port and does not expose a known RCON endpoint. The dashboard probes A2S locally and shows the game's compiled six-player capacity, but labels live player count as unavailable rather than guessing when the probe times out.
+Dragonwilds currently does not respond to Steam A2S player queries on the game port and exposes no known RCON endpoint. The dashboard reports the six-player build limit and marks live player count unavailable rather than fabricating a value.
 
 ## Network
 
-Create an inbound Windows Firewall rule and a pfSense NAT/firewall rule for the configured UDP port (default **7778**) to the server's static LAN address. The application is public when `Public=1` in the generated `DedicatedServer.ini`.
+The installer creates the local Windows Firewall rule. Internet play also requires forwarding the selected UDP game port from the edge firewall/router to the Windows host.
 
-## Deployment
+## License
 
-`scripts\Deploy-ToFarmSim25.ps1` copies this repository to the target using OpenSSH, then runs the installer remotely. It defaults to `E:\DragonWildsServer` deliberately: use a volume with at least 25 GB free. Pass `-InstallRoot` with the actual prepared volume.
+MIT

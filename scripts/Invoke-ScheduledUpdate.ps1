@@ -1,9 +1,11 @@
 [CmdletBinding()]
-param([int]$GraceMinutes = 10)
+param([ValidateRange(0, 60)][Nullable[int]]$GraceMinutes)
 
 . $PSScriptRoot\Common.ps1
 
 Initialize-DragonWildsState
+$config = Get-DragonWildsConfig
+if ($null -eq $GraceMinutes) { $GraceMinutes = $config.UpdateGraceMinutes }
 $statePath = Join-Path $script:StateRoot 'update-status.json'
 $statusScript = Join-Path $PSScriptRoot 'Get-DragonWildsUpdateStatus.ps1'
 $updateScript = Join-Path $PSScriptRoot 'Update-DragonWildsServer.ps1'

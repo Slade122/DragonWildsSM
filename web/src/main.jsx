@@ -19,7 +19,7 @@ const actionLabels = {
   update: 'Update now',
   backup: 'Seal world save',
   'check-update': 'Scout Steam',
-  'scheduled-update': 'Start 10-minute update'
+  'scheduled-update': 'Start update cycle'
 };
 
 function Login({ onLogin }) {
@@ -39,12 +39,122 @@ function Login({ onLogin }) {
     <form className="login-panel" onSubmit={submit}>
       <div className="crest">DW</div>
       <p className="eyebrow">RuneScape: Dragonwilds</p>
-      <h1>Clan Server</h1>
-      <p className="muted">FarmSim25 command gate. Homies only.</p>
+      <h1>Server Manager</h1>
+      <p className="muted">Enter the dashboard passphrase.</p>
       <label>Passphrase<input autoFocus type="password" value={password} onChange={e => setPassword(e.target.value)} /></label>
       {error && <p className="error">{error}</p>}
       <button>Enter the wilds</button>
     </form>
+  </main>;
+}
+
+function Setup({ setupInfo }) {
+  const [step, setStep] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [complete, setComplete] = useState(false);
+  const [form, setForm] = useState({
+    installRoot: 'C:\\DragonWildsServer',
+    backupRoot: 'C:\\ProgramData\\DragonWildsSM\\backups',
+    steamCmdPath: 'C:\\steamcmd\\steamcmd.exe',
+    gamePort: 7777,
+    webPort: Number(window.location.port) || 8787,
+    bindAddress: '0.0.0.0',
+    remoteAddress: 'LocalSubnet',
+    serverName: 'My Dragonwilds Server',
+    worldName: 'Dragonwilds',
+    ownerId: '',
+    public: true,
+    worldPassword: '',
+    adminPassword: '',
+    dashboardPassword: '',
+    updateCheckHours: 1,
+    updateGraceMinutes: 10,
+    managerTitle: 'Dragonwilds Server',
+    managerSubtitle: 'Dedicated server command center',
+    hostDisplayName: 'Windows Server',
+    accentColor: '#d9aa50',
+    skipServerInstall: Boolean(setupInfo?.serverConfigured),
+    ...(setupInfo?.defaults || {})
+  });
+  const update = (field, value) => setForm(current => ({ ...current, [field]: value }));
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await request('/api/setup', { method: 'POST', body: JSON.stringify(form) });
+      setComplete(true);
+      const target = `${window.location.protocol}//${window.location.hostname}:${result.webPort}`;
+      setTimeout(() => { window.location.href = target; }, 12000);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (complete) return <main className="login-shell"><section className="login-panel">
+    <div className="crest">DW</div>
+    <p className="eyebrow">Setup complete</p>
+    <h1>Realm created</h1>
+    <p className="muted">The manager is applying firewall rules and restarting. Reconnecting shortly...</p>
+  </section></main>;
+
+  return <main className="setup-shell" style={{ '--accent': form.accentColor }}>
+    <header className="setup-header">
+      <div><p className="eyebrow">First-run setup</p><h1>Build your Dragonwilds server</h1></div>
+      <span>Step {step} of 3</span>
+    </header>
+    <div className="setup-progress"><i className={step >= 1 ? 'done' : ''} /><i className={step >= 2 ? 'done' : ''} /><i className={step >= 3 ? 'done' : ''} /></div>
+
+    {step === 1 && <section className="panel form-grid">
+      <div className="panel-title wide"><p className="eyebrow">Storage and network</p><h3>Where should everything live?</h3><p className="muted">Choose separate locations for the game, SteamCMD, and backups.</p></div>
+      <label className="check wide"><input type="checkbox" checked={form.skipServerInstall} onChange={e => update('skipServerInstall', e.target.checked)} /> Server is already installed and configured; skip SteamCMD installation</label>
+      {form.skipServerInstall && <p className="existing-note wide">Existing installation detected. Setup will preserve the game files and only apply manager, dashboard, firewall, and scheduled-task configuration.</p>}
+      <label>Game install location<input value={form.installRoot} onChange={e => update('installRoot', e.target.value)} /></label>
+      <label>Backup location<input value={form.backupRoot} onChange={e => update('backupRoot', e.target.value)} /></label>
+      <label>SteamCMD executable<input value={form.steamCmdPath} onChange={e => update('steamCmdPath', e.target.value)} /></label>
+      <label>Game UDP port<input type="number" min="1" max="65535" value={form.gamePort} onChange={e => update('gamePort', Number(e.target.value))} /></label>
+      <label>Dashboard TCP port<input type="number" min="1" max="65535" value={form.webPort} onChange={e => update('webPort', Number(e.target.value))} /></label>
+      <label>Dashboard bind address<input value={form.bindAddress} onChange={e => update('bindAddress', e.target.value)} /></label>
+      <label className="wide">Dashboard firewall scope<input value={form.remoteAddress} onChange={e => update('remoteAddress', e.target.value)} /><small>Use LocalSubnet for LAN-only access, or a specific CIDR/IP range.</small></label>
+    </section>}
+
+    {step === 2 && <section className="panel form-grid">
+      <div className="panel-title wide"><p className="eyebrow">Realm identity</p><h3>Configure the game server</h3></div>
+      <label>Server name<input value={form.serverName} onChange={e => update('serverName', e.target.value)} /></label>
+      <label>World name<input value={form.worldName} onChange={e => update('worldName', e.target.value)} /></label>
+      <label>Owner SteamID64<input inputMode="numeric" placeholder="Optional 17-digit ID" value={form.ownerId} onChange={e => update('ownerId', e.target.value)} /></label>
+      <label>World password<input type="password" value={form.worldPassword} onChange={e => update('worldPassword', e.target.value)} /></label>
+      <label>Admin password<input type="password" value={form.adminPassword} onChange={e => update('adminPassword', e.target.value)} /></label>
+      <label>Dashboard password<input type="password" minLength="8" value={form.dashboardPassword} onChange={e => update('dashboardPassword', e.target.value)} /></label>
+      <label>Update check interval (hours)<input type="number" min="1" max="24" value={form.updateCheckHours} onChange={e => update('updateCheckHours', Number(e.target.value))} /></label>
+      <label>Update warning (minutes)<input type="number" min="0" max="60" value={form.updateGraceMinutes} onChange={e => update('updateGraceMinutes', Number(e.target.value))} /></label>
+      <label className="check wide"><input type="checkbox" checked={form.public} onChange={e => update('public', e.target.checked)} /> Show in the public Dragonwilds server list</label>
+    </section>}
+
+    {step === 3 && <section className="panel form-grid">
+      <div className="panel-title wide"><p className="eyebrow">Dashboard identity</p><h3>Make it yours</h3></div>
+      <label>Dashboard title<input value={form.managerTitle} onChange={e => update('managerTitle', e.target.value)} /></label>
+      <label>Host display name<input value={form.hostDisplayName} onChange={e => update('hostDisplayName', e.target.value)} /></label>
+      <label className="wide">Dashboard subtitle<input value={form.managerSubtitle} onChange={e => update('managerSubtitle', e.target.value)} /></label>
+      <label>Accent color<input className="color-input" type="color" value={form.accentColor} onChange={e => update('accentColor', e.target.value)} /></label>
+      <div className="setup-summary">
+        <b>{form.managerTitle}</b>
+        <span>{form.serverName} · UDP {form.gamePort}</span>
+        <span>{form.installRoot}</span>
+        <span>Backups: {form.backupRoot}</span>
+      </div>
+    </section>}
+
+    {error && <div className="notice error">{error}</div>}
+    <footer className="setup-actions">
+      <button className="secondary" disabled={step === 1 || busy} onClick={() => setStep(current => current - 1)}>Back</button>
+      {step < 3
+        ? <button onClick={() => setStep(current => current + 1)}>Continue</button>
+        : <button disabled={busy} onClick={submit}>{busy ? 'Installing server...' : 'Install and launch'}</button>}
+    </footer>
+    {busy && <p className="setup-warning">SteamCMD may take several minutes. Keep this page open.</p>}
   </main>;
 }
 
@@ -57,6 +167,8 @@ function Stat({ label, value, detail, tone = '' }) {
 }
 
 function App() {
+  const [setupRequired, setSetupRequired] = useState(null);
+  const [setupInfo, setSetupInfo] = useState(null);
   const [authenticated, setAuthenticated] = useState(null);
   const [status, setStatus] = useState(null);
   const [config, setConfig] = useState(null);
@@ -87,12 +199,23 @@ function App() {
       else setMessage(failure.message);
     }
   };
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    request('/api/setup/status')
+      .then(result => {
+        setSetupInfo(result);
+        setSetupRequired(result.required);
+        if (!result.required) refresh();
+      })
+      .catch(failure => setMessage(failure.message));
+  }, []);
   useEffect(() => {
     if (!authenticated) return undefined;
     const timer = setInterval(refresh, 15000);
     return () => clearInterval(timer);
   }, [authenticated]);
+  useEffect(() => {
+    if (config?.managerTitle) document.title = config.managerTitle;
+  }, [config?.managerTitle]);
 
   const action = async (name) => {
     setBusy(name);
@@ -114,7 +237,13 @@ function App() {
     try {
       const response = await request('/api/config', { method: 'PUT', body: JSON.stringify(config) });
       setMessage(response.message);
-      await refresh();
+      if (response.managerRestarting) {
+        const target = `${window.location.protocol}//${window.location.hostname}:${response.webPort}`;
+        setMessage(`Configuration saved. Dashboard is restarting at ${target}...`);
+        setTimeout(() => { window.location.href = target; }, 12000);
+      } else {
+        await refresh();
+      }
     } catch (failure) {
       setMessage(failure.message);
     } finally {
@@ -122,6 +251,8 @@ function App() {
     }
   };
 
+  if (setupRequired === null) return <main className="loading">Checking installation...</main>;
+  if (setupRequired) return <Setup setupInfo={setupInfo} />;
   if (authenticated === null) return <main className="loading">Opening clan gate...</main>;
   if (!authenticated) return <Login onLogin={refresh} />;
 
@@ -131,13 +262,13 @@ function App() {
   const updateText = updateStatus?.status === 'unknown' ? 'Not checked yet' : updateStatus?.message;
   const deadline = updateStatus?.deadline ? new Date(updateStatus.deadline).toLocaleTimeString() : null;
 
-  return <main className="shell">
+  return <main className="shell" style={{ '--accent': config.accentColor }}>
     <header className="topbar">
       <div className="brand">
         <div className="crest small">DW</div>
         <div>
           <p className="eyebrow">RuneScape: Dragonwilds</p>
-          <h1>{config.serverName}</h1>
+          <h1>{config.managerTitle}</h1>
         </div>
       </div>
       <div className="server-ribbon">
@@ -152,7 +283,7 @@ function App() {
       <div className="hero-copy">
         <p className="eyebrow">World shard</p>
         <h2>{config.worldName}</h2>
-        <p>Crossplay realm for the crew. Public listing is <b>{config.public ? 'enabled' : 'hidden'}</b>; live player query is {players?.supported ? 'working' : 'not exposed by RSDW'}.</p>
+        <p>{config.managerSubtitle}. Public listing is <b>{config.public ? 'enabled' : 'hidden'}</b>; live player query is {players?.supported ? 'working' : 'not exposed by RSDW'}.</p>
       </div>
       <div className="quick-actions">
         {['start', 'restart', 'stop'].map(name => <button key={name} className={name === 'stop' ? 'danger' : ''} disabled={!!busy} onClick={() => action(name)}>{busy === name ? 'Working...' : actionLabels[name]}</button>)}
@@ -181,7 +312,7 @@ function App() {
         </div>
       </div>
       <div className="panel">
-        <div className="panel-title"><p className="eyebrow">Host load</p><h3>FarmSim25</h3></div>
+        <div className="panel-title"><p className="eyebrow">Host load</p><h3>{config.hostDisplayName}</h3></div>
         <div className="meter"><span style={{ width: `${Math.min(status.ServerCpuPercent || 0, 100)}%` }} /></div>
         <p className="meter-label">{status.ServerCpuPercent}% server CPU</p>
         <div className="meter"><span style={{ width: `${Math.min(status.HostMemoryUsedPercent || 0, 100)}%` }} /></div>
@@ -199,11 +330,24 @@ function App() {
       <div className="panel-title wide"><p className="eyebrow">Realm settings</p><h3>Names, passwords, visibility</h3><p className="muted">Saving writes Dragonwilds config and rekindles the server.</p></div>
       <label>Server name<input required value={config.serverName} onChange={e => update('serverName', e.target.value)} /></label>
       <label>World name<input required value={config.worldName} onChange={e => update('worldName', e.target.value)} /></label>
+      <label>Game UDP port<input type="number" min="1" max="65535" value={config.gamePort} onChange={e => update('gamePort', Number(e.target.value))} /></label>
       <label>World password<input type="password" placeholder="Leave blank to keep current" value={config.worldPassword} onChange={e => update('worldPassword', e.target.value)} /></label>
       <label>Admin password<input type="password" placeholder="Leave blank to keep current" value={config.adminPassword} onChange={e => update('adminPassword', e.target.value)} /></label>
+      <label>Owner SteamID64<input inputMode="numeric" placeholder="17-digit SteamID64" value={config.ownerId} onChange={e => update('ownerId', e.target.value)} /></label>
+      <label>Backup location<input required value={config.backupRoot} onChange={e => update('backupRoot', e.target.value)} /></label>
+      <label>Dashboard title<input required value={config.managerTitle} onChange={e => update('managerTitle', e.target.value)} /></label>
+      <label>Dashboard subtitle<input required value={config.managerSubtitle} onChange={e => update('managerSubtitle', e.target.value)} /></label>
+      <label>Host display name<input required value={config.hostDisplayName} onChange={e => update('hostDisplayName', e.target.value)} /></label>
+      <label>Accent color<input className="color-input" type="color" value={config.accentColor} onChange={e => update('accentColor', e.target.value)} /></label>
+      <label>Update interval (hours)<input type="number" min="1" max="24" value={config.updateCheckHours} onChange={e => update('updateCheckHours', Number(e.target.value))} /></label>
+      <label>Update grace period (minutes)<input type="number" min="0" max="60" value={config.updateGraceMinutes} onChange={e => update('updateGraceMinutes', Number(e.target.value))} /></label>
+      <label>Dashboard TCP port<input type="number" min="1" max="65535" value={config.webPort} onChange={e => update('webPort', Number(e.target.value))} /></label>
+      <label>Dashboard bind address<input value={config.bindAddress} onChange={e => update('bindAddress', e.target.value)} /></label>
+      <label className="wide">Dashboard firewall scope<input value={config.remoteAddress} onChange={e => update('remoteAddress', e.target.value)} /></label>
       <label className="check"><input type="checkbox" checked={config.public} onChange={e => update('public', e.target.checked)} /> Show in public Dragonwilds listing</label>
       <div className="facts wide">
-        <div><span>Install</span><code>{config.installRoot}</code></div>
+        <div><span>Game install</span><code>{config.installRoot}</code></div>
+        <div><span>Backups</span><code>{config.backupRoot}</code></div>
         <div><span>Executable</span><code>{config.executablePath}</code></div>
         <div><span>SteamCMD</span><code>{config.steamCmdPath}</code></div>
         <div><span>Policy</span><code>UDP {config.gamePort} · {config.platformPolicy} · {config.maxPlayers} player cap</code></div>
@@ -214,11 +358,11 @@ function App() {
     {tab === 'maintenance' && <section className="dashboard-grid">
       <div className="panel">
         <div className="panel-title"><p className="eyebrow">SteamCMD</p><h3>Scheduled updating</h3></div>
-        <p className="muted">Automatic checks run hourly. When a build lands, the task waits 10 minutes, then shuts down, updates, validates, and restarts.</p>
+        <p className="muted">Automatic checks run every {config.updateCheckHours} hour(s). When a build lands, the task waits {config.updateGraceMinutes} minute(s), then shuts down, updates, validates, and restarts.</p>
         <p className="status-line">{updateText}</p>
         {deadline && <p className="countdown">Grace window ends {deadline}</p>}
         <div className="button-row">
-          <button disabled={!!busy} onClick={() => action('scheduled-update')}>{busy === 'scheduled-update' ? 'Starting...' : actionLabels['scheduled-update']}</button>
+          <button disabled={!!busy} onClick={() => action('scheduled-update')}>{busy === 'scheduled-update' ? 'Starting...' : `Start ${config.updateGraceMinutes}-minute update`}</button>
           <button className="secondary" disabled={!!busy} onClick={() => action('update')}>{busy === 'update' ? 'Updating...' : actionLabels.update}</button>
         </div>
       </div>

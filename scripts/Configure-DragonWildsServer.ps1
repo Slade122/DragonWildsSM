@@ -4,7 +4,11 @@ param(
     [string]$WorldName,
     [string]$OwnerId,
     [SecureString]$AdminPassword,
-    [SecureString]$WorldPassword
+    [SecureString]$WorldPassword,
+    [string]$ManagerTitle,
+    [string]$ManagerSubtitle,
+    [string]$HostDisplayName,
+    [ValidatePattern('^#[0-9A-Fa-f]{6}$')][string]$AccentColor
 )
 
 . $PSScriptRoot\Common.ps1
@@ -18,6 +22,10 @@ if (-not $PSBoundParameters.ContainsKey('AdminPassword')) { $AdminPassword = Rea
 if (-not $PSBoundParameters.ContainsKey('WorldPassword')) { $WorldPassword = Read-Host 'World password (blank allows friends without one)' -AsSecureString }
 if (-not $OwnerId) { $OwnerId = Read-Host 'SteamID64 owner (optional)' }
 if ($OwnerId -and $OwnerId -notmatch '^\d{17}$') { throw 'OwnerId must be a 17-digit SteamID64.' }
+if ($ManagerTitle) { $config.ManagerTitle = $ManagerTitle }
+if ($ManagerSubtitle) { $config.ManagerSubtitle = $ManagerSubtitle }
+if ($HostDisplayName) { $config.HostDisplayName = $HostDisplayName }
+if ($AccentColor) { $config.AccentColor = $AccentColor }
 
 $toPlainText = {
     param([SecureString]$Value)
@@ -29,19 +37,9 @@ $toPlainText = {
 $admin = & $toPlainText $AdminPassword
 $worldPassword = & $toPlainText $WorldPassword
 
-$configContent = @"
-@{
-    AppId = $($config.AppId)
-    InstallRoot = $(ConvertTo-Psd1Literal $config.InstallRoot)
-    SteamCmdPath = $(ConvertTo-Psd1Literal $config.SteamCmdPath)
-    ServerExecutableRelativePath = $(ConvertTo-Psd1Literal $config.ServerExecutableRelativePath)
-    GamePort = $($config.GamePort)
-    Public = $($config.Public)
-    ServerName = $(ConvertTo-Psd1Literal $ServerName)
-    WorldName = $(ConvertTo-Psd1Literal $WorldName)
-    LogRetentionDays = $($config.LogRetentionDays)
-}
-"@
+$config.ServerName = $ServerName
+$config.WorldName = $WorldName
+$configContent = ConvertTo-DragonWildsConfigContent -Config $config
 Set-Content -LiteralPath $script:ConfigPath -Value $configContent -Encoding utf8
 $secretContent = @"
 @{
