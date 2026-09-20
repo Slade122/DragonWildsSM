@@ -4,8 +4,8 @@ param(
     [ValidatePattern('^(?:[A-Za-z]:\\|\\\\[^\\]+\\[^\\]+)')][string]$BackupRoot,
     [string]$SteamCmdPath = 'C:\steamcmd\steamcmd.exe',
     [ValidateRange(1, 65535)][int]$GamePort = 7777,
-    [string]$ServerName,
-    [string]$WorldName = 'Dragonwilds',
+    [ValidateLength(1, 16)][string]$ServerName,
+    [ValidateLength(1, 16)][string]$WorldName = 'Dragonwilds',
     [ValidateSet('Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo')][string]$PlatformPolicy = 'Crossplay',
     [ValidateRange(1, 6)][int]$MaxPlayers = 6,
     [string]$OwnerId,
@@ -40,8 +40,8 @@ if (-not $InstallRoot) { $InstallRoot = Read-Host 'Game install location [C:\Dra
 if (-not $InstallRoot) { $InstallRoot = 'C:\DragonWildsServer' }
 if (-not $BackupRoot) { $BackupRoot = Read-Host 'Backup location [C:\ProgramData\DragonWildsSM\backups]' }
 if (-not $BackupRoot) { $BackupRoot = 'C:\ProgramData\DragonWildsSM\backups' }
-if (-not $ServerName) { $ServerName = Read-Host 'Server name [My Dragonwilds Server]' }
-if (-not $ServerName) { $ServerName = 'My Dragonwilds Server' }
+if (-not $ServerName) { $ServerName = Read-Host 'Server name [My Dragonwilds]' }
+if (-not $ServerName) { $ServerName = 'My Dragonwilds' }
 if (-not $OwnerId) { $OwnerId = Read-Host 'Owner SteamID64 (optional)' }
 if ($OwnerId -and $OwnerId -notmatch '^\d{17}$') { throw 'OwnerId must be a 17-digit SteamID64.' }
 if (-not $PSBoundParameters.ContainsKey('WorldPassword')) { $WorldPassword = Read-Host 'World password (blank for none)' -AsSecureString }

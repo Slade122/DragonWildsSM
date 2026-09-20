@@ -76,7 +76,7 @@ const readConfig = async () => {
     ServerExecutableRelativePath: 'RSDragonwilds\\Binaries\\Win64\\RSDragonwildsServer.exe',
     GamePort: 7777,
     Public: 1,
-    ServerName: 'My Dragonwilds Server',
+    ServerName: 'My Dragonwilds',
     WorldName: 'Dragonwilds',
     PlatformPolicy: 'Crossplay',
     MaxPlayers: 6,
@@ -111,8 +111,8 @@ const overview = async (config) => {
     `$save = Get-ChildItem -LiteralPath (Join-Path $gameRoot 'Saved\\SaveGames') -Filter '*.sav' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1`,
     `$log = Get-ChildItem -LiteralPath (Join-Path $gameRoot 'Saved\\Logs') -Filter '*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1`,
     `$logTail = if ($log) { Get-Content -LiteralPath $log.FullName -Tail 500 } else { @() }`,
-    `$sessionReady = [bool]($logTail | Select-String -SimpleMatch 'START SESSION - Success' | Select-Object -Last 1)`,
-    `$joinCodeMatch = $logTail | Select-String 'Setting \\["JoinCode"\\].*value\\[(?<code>[^]]+)\\]' | Select-Object -Last 1`,
+    `$sessionReady = [bool]($logTail | Select-String 'START SESSION - Success|HeartbeatSession' | Select-Object -Last 1)`,
+    `$joinCodeMatch = if ($log) { Select-String -LiteralPath $log.FullName -Pattern 'Setting \\["JoinCode"\\].*value\\[(?<code>[^]]+)\\]' | Select-Object -Last 1 } else { $null }`,
     `$joinCode = if ($joinCodeMatch -and $joinCodeMatch.Matches.Count) { $joinCodeMatch.Matches[0].Groups['code'].Value } else { $null }`,
     `$os = Get-CimInstance Win32_OperatingSystem`,
     `$process = Get-Process -Name 'RSDragonwildsServer-Win64-Shipping' -ErrorAction SilentlyContinue | Select-Object -First 1`,
@@ -227,6 +227,7 @@ app.post('/api/setup', async (request, response) => {
   if (!(/^[A-Za-z]:\\/.test(backupRoot) || /^\\\\[^\\]+\\[^\\]+/.test(backupRoot))) return response.status(400).json({ error: 'Backup location must be an absolute Windows or UNC path.' });
   if (!(/^[A-Za-z]:\\/.test(steamCmdPath) || /^\\\\[^\\]+\\[^\\]+/.test(steamCmdPath))) return response.status(400).json({ error: 'SteamCMD location must be an absolute Windows or UNC path.' });
   if (!serverName || !worldName) return response.status(400).json({ error: 'Server and world names are required.' });
+  if (serverName.length > 16 || worldName.length > 16) return response.status(400).json({ error: 'Server and world names cannot exceed 16 characters.' });
   if (ownerId && !/^\d{17}$/.test(ownerId)) return response.status(400).json({ error: 'Owner ID must be a 17-digit SteamID64.' });
   if (!Number.isInteger(gamePort) || gamePort < 1 || gamePort > 65535) return response.status(400).json({ error: 'Game port must be between 1 and 65535.' });
   if (!Number.isInteger(webPort) || webPort < 1 || webPort > 65535) return response.status(400).json({ error: 'Dashboard port must be between 1 and 65535.' });
@@ -355,6 +356,7 @@ app.put('/api/config', requireAuth, async (request, response) => {
   const config = await readConfig(); const secrets = await readSecrets();
   const next = request.body || {};
   if (!clean(next.serverName) || !clean(next.worldName)) return response.status(400).json({ error: 'Server and world names are required.' });
+  if (clean(next.serverName).length > 16 || clean(next.worldName).length > 16) return response.status(400).json({ error: 'Server and world names cannot exceed 16 characters.' });
   if (!(/^[A-Za-z]:\\/.test(clean(next.backupRoot)) || /^\\\\[^\\]+\\[^\\]+/.test(clean(next.backupRoot)))) return response.status(400).json({ error: 'Backup location must be an absolute Windows or UNC path.' });
   if (!/^#[0-9a-f]{6}$/i.test(clean(next.accentColor))) return response.status(400).json({ error: 'Accent color must be a six-digit hex color.' });
   if (clean(next.ownerId) && !/^\d{17}$/.test(clean(next.ownerId))) return response.status(400).json({ error: 'Owner ID must be a 17-digit SteamID64.' });

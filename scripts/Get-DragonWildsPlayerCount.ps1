@@ -30,9 +30,15 @@ try {
 
     $capturePath = Join-Path $env:TEMP "dwsm-player-$PID.etl"
     $textPath = Join-Path $env:TEMP "dwsm-player-$PID.txt"
-    $sessionName = "DragonWildsSM-$PID"
+    $sessionName = "DragonWildsSM-$PID-$([Guid]::NewGuid().ToString('N'))"
     try {
-        Remove-NetEventSession -Name $sessionName -ErrorAction SilentlyContinue
+        Get-NetEventSession -ErrorAction SilentlyContinue |
+            Where-Object Name -Like 'DragonWildsSM-*' |
+            ForEach-Object {
+                Stop-NetEventSession -Name $_.Name -ErrorAction SilentlyContinue
+                Remove-NetEventSession -Name $_.Name -ErrorAction SilentlyContinue
+            }
+        Remove-Item -LiteralPath $capturePath, $textPath -Force -ErrorAction SilentlyContinue
         New-NetEventSession -Name $sessionName -LocalFilePath $capturePath -CaptureMode SaveToFile -MaxFileSize 16 | Out-Null
         Add-NetEventPacketCaptureProvider -SessionName $sessionName -IpProtocols 17 -TruncationLength 96 | Out-Null
         Start-NetEventSession -Name $sessionName

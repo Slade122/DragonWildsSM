@@ -2,6 +2,8 @@
 
 A self-hosted Windows manager for the RuneScape: Dragonwilds dedicated server. It installs Steam app `4019830`, manages startup and recovery, performs scheduled updates, creates world backups, and provides a password-protected React dashboard.
 
+Dragonwilds publishes server and world names with a 16-character limit. Changing the world name selects or creates a different save; it does not rename an existing world.
+
 ## Features
 
 - Interactive installer with configurable game, SteamCMD, and backup locations

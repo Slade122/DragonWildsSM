@@ -5,8 +5,8 @@ param(
     [ValidatePattern('^[A-Za-z]:\\')][string]$ManagerRoot = 'C:\DragonWildsSM',
     [ValidatePattern('^(?:[A-Za-z]:\\|\\\\[^\\]+\\[^\\]+)')][string]$BackupRoot = 'C:\ProgramData\DragonWildsSM\backups',
     [ValidateRange(1, 65535)][int]$GamePort = 7777,
-    [string]$ServerName = 'My Dragonwilds Server',
-    [string]$WorldName = 'Dragonwilds',
+    [ValidateLength(1, 16)][string]$ServerName = 'My Dragonwilds',
+    [ValidateLength(1, 16)][string]$WorldName = 'Dragonwilds',
     [ValidateSet('Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo')][string]$PlatformPolicy = 'Crossplay',
     [ValidateRange(1, 6)][int]$MaxPlayers = 6
 )

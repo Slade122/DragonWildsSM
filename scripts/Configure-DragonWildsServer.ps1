@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ServerName,
-    [string]$WorldName,
+    [ValidateLength(1, 16)][string]$ServerName,
+    [ValidateLength(1, 16)][string]$WorldName,
     [ValidateSet('Crossplay', 'PC', 'PlayStation', 'Xbox', 'Nintendo')][string]$PlatformPolicy,
     [ValidateRange(1, 6)][int]$MaxPlayers,
     [string]$OwnerId,

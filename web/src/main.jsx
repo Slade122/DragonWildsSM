@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -67,7 +67,7 @@ function Setup({ setupInfo }) {
     webPort: Number(window.location.port) || 8787,
     bindAddress: '0.0.0.0',
     remoteAddress: 'LocalSubnet',
-    serverName: 'My Dragonwilds Server',
+    serverName: 'My Dragonwilds',
     worldName: 'Dragonwilds',
     ownerId: '',
     public: true,
@@ -130,8 +130,8 @@ function Setup({ setupInfo }) {
 
     {step === 2 && <section className="panel form-grid">
       <div className="panel-title wide"><p className="eyebrow">Realm identity</p><h3>Configure the game server</h3></div>
-      <label>Server name<input value={form.serverName} onChange={e => update('serverName', e.target.value)} /></label>
-      <label>World name<input value={form.worldName} onChange={e => update('worldName', e.target.value)} /></label>
+      <label>Server name<input maxLength="16" value={form.serverName} onChange={e => update('serverName', e.target.value)} /><small>Maximum 16 characters.</small></label>
+      <label>World name<input maxLength="16" value={form.worldName} onChange={e => update('worldName', e.target.value)} /><small>Maximum 16 characters.</small></label>
       <label>Owner SteamID64<input inputMode="numeric" placeholder="Optional 17-digit ID" value={form.ownerId} onChange={e => update('ownerId', e.target.value)} /></label>
       <label>World password<input type="password" value={form.worldPassword} onChange={e => update('worldPassword', e.target.value)} /></label>
       <label>Admin password<input type="password" value={form.adminPassword} onChange={e => update('adminPassword', e.target.value)} /></label>
@@ -188,8 +188,11 @@ function App() {
   const [tab, setTab] = useState('overview');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
+  const configDirty = useRef(false);
+  const configVersion = useRef(0);
 
   const refresh = async () => {
+    const versionAtStart = configVersion.current;
     try {
       const [nextStatus, nextConfig, nextLogs, nextPlayers, nextUpdateStatus] = await Promise.all([
         request('/api/overview'),
@@ -199,7 +202,7 @@ function App() {
         request('/api/update-status')
       ]);
       setStatus(nextStatus);
-      setConfig(nextConfig);
+      if (!configDirty.current && configVersion.current === versionAtStart) setConfig(nextConfig);
       setLogs(nextLogs.lines);
       setPlayers(nextPlayers);
       setUpdateStatus(nextUpdateStatus);
@@ -246,6 +249,8 @@ function App() {
     setMessage('');
     try {
       const response = await request('/api/config', { method: 'PUT', body: JSON.stringify(config) });
+      configVersion.current += 1;
+      configDirty.current = false;
       setMessage(response.message);
       if (response.managerRestarting) {
         const target = `${window.location.protocol}//${window.location.hostname}:${response.webPort}`;
@@ -266,7 +271,11 @@ function App() {
   if (authenticated === null) return <main className="loading">Opening clan gate...</main>;
   if (!authenticated) return <Login onLogin={refresh} />;
 
-  const update = (field, value) => setConfig(current => ({ ...current, [field]: value }));
+  const update = (field, value) => {
+    configVersion.current += 1;
+    configDirty.current = true;
+    setConfig(current => ({ ...current, [field]: value }));
+  };
   const online = status?.running;
   const playerText = players?.supported ? `${players.currentPlayers} / ${players.maxPlayers}` : `? / ${config.maxPlayers}`;
   const updateText = updateStatus?.status === 'unknown' ? 'Not checked yet' : updateStatus?.message;
@@ -293,7 +302,6 @@ function App() {
       <div className="hero-copy">
         <p className="eyebrow">World shard</p>
         <h2>{config.worldName}</h2>
-        <p>{config.managerSubtitle}. Public listing is <b>{config.public ? 'enabled' : 'hidden'}</b>; player monitoring is {players?.supported ? 'active' : 'unavailable'}.</p>
       </div>
       <div className="quick-actions">
         {['start', 'restart', 'stop'].map(name => <button key={name} className={name === 'stop' ? 'danger' : ''} disabled={!!busy} onClick={() => action(name)}>{busy === name ? 'Working...' : actionLabels[name]}</button>)}
@@ -341,8 +349,8 @@ function App() {
 
     {tab === 'realm' && <form className="panel form-grid" onSubmit={save}>
       <div className="panel-title wide"><p className="eyebrow">Realm settings</p><h3>Names, passwords, visibility</h3><p className="muted">Saving writes Dragonwilds config and rekindles the server.</p></div>
-      <label>Server name<input required value={config.serverName} onChange={e => update('serverName', e.target.value)} /></label>
-      <label>World name<input required value={config.worldName} onChange={e => update('worldName', e.target.value)} /></label>
+      <label>Server name<input required maxLength="16" value={config.serverName} onChange={e => update('serverName', e.target.value)} /><small>Maximum 16 characters.</small></label>
+      <label>World name<input required maxLength="16" value={config.worldName} onChange={e => update('worldName', e.target.value)} /><small>Maximum 16 characters. Changing it selects or creates a different save; it does not rename the current world.</small></label>
       <label>Game UDP port<input type="number" min="1" max="65535" value={config.gamePort} onChange={e => update('gamePort', Number(e.target.value))} /></label>
       <label>Allowed platforms<select value={config.platformPolicy} onChange={e => update('platformPolicy', e.target.value)}><option>Crossplay</option><option>PC</option><option>PlayStation</option><option>Xbox</option><option>Nintendo</option></select></label>
       <label>Player cap<input type="number" min="1" max="6" value={config.maxPlayers} onChange={e => update('maxPlayers', Number(e.target.value))} /></label>

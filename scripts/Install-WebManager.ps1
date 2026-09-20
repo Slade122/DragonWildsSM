@@ -52,7 +52,7 @@ else {
         ServerExecutableRelativePath = 'RSDragonwilds\Binaries\Win64\RSDragonwildsServer.exe'
         GamePort = 7777
         Public = 1
-        ServerName = 'My Dragonwilds Server'
+        ServerName = 'My Dragonwilds'
         WorldName = 'Dragonwilds'
         LogRetentionDays = 30
         UpdateCheckHours = 1
