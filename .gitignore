@@ -1,0 +1,10 @@
+# Machine-specific runtime state and secrets
+runtime/
+config/ServerConfig.psd1
+config/ServerSecrets.psd1
+
+# PowerShell and editor artifacts
+*.log
+*.tmp
+.vs/
+.vscode/
