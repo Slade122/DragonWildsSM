@@ -2,6 +2,7 @@
 runtime/
 config/ServerConfig.psd1
 config/ServerSecrets.psd1
+web/node_modules/
 
 # PowerShell and editor artifacts
 *.log
